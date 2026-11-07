@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>手写笔迹 · 多色画布</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    min-height: 100vh;
+    background: #0f0f14;
+    color: #ddd;
+    font-family: system-ui, -apple-system, "PingFang SC", sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+    gap: 16px;
+  }
+  h1 { font-size: 16px; font-weight: 400; color: #666; letter-spacing: 2px; }
+
+  #padWrap { width: 100%; max-width: 720px; position: relative; }
+  #pad {
+    width: 100%;
+    height: 180px;
+    background: #1a1a22;
+    border: 1px dashed #333;
+    border-radius: 12px;
+    touch-action: none;
+    cursor: crosshair;
+    display: block;
+  }
+  #padHint {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #444;
+    font-size: 14px;
+    pointer-events: none;
+    transition: opacity .2s;
+  }
+  #padWrap.hasInk #padHint { opacity: 0; }
+
+  .controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+    align-items: center;
+  }
+  button {
+    padding: 9px 18px;
+    border: 1px solid #333;
+    border-radius: 999px;
+    background: #1a1a22;
+    color: #ddd;
+    font-size: 14px;
+    cursor: pointer;
+    transition: .15s;
+  }
+  button:hover { border-color: #666; background: #22222c; }
+  button.active { background: #6ee7ff; color: #0f0f14; border-color: #6ee7ff; font-weight: 600; }
+  button.danger.active { background: #ff6b6b; border-color: #ff6b6b; color: #0f0f14; }
+  button:disabled { opacity: .35; cursor: not-allowed; }
+
+  .colorRow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 13px;
+    color: #666;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .swatches { display: flex; gap: 6px; }
+  .swatch {
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    background: var(--c);
+    cursor: pointer;
+    transition: transform .12s, border-color .12s;
+  }
+  .swatch:hover { transform: scale(1.15); }
+  .swatch.active { border-color: #fff; box-shadow: 0 0 0 2px #0f0f14, 0 0 0 3px var(--c); }
+  input[type=color] {
+    width: 36px; height: 28px;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #1a1a22;
+    cursor: pointer;
+    padding: 2px;
+  }
+
+  .sizeRow {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: #666;
+  }
+  input[type=range] { width: 120px; accent-color: #6ee7ff; }
+
+  #display {
+    width: 100%;
+    max-width: 900px;
+    min-height: 120px;
+    border: 1px solid #222;
+    border-radius: 12px;
+    background: #14141a;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    scroll-margin-top: 20px;
+  }
+  #display.static img { max-width: 90%; max-height: 160px; object-fit: contain; }
+  #display.scroll { justify-content: flex-start; }
+  #display.scroll .track {
+    display: flex;
+    align-items: center;
+    height: 160px;
+    animation: marquee var(--speed, 8s) linear infinite;
+    will-change: transform;
+  }
+  #display.scroll .track img {
+    height: 120px; width: auto;
+    margin-right: 80px;
+    flex-shrink: 0;
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  #emptyTip { color: #333; font-size: 14px; }
+  #display.hasContent #emptyTip { display: none; }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    h1, #padWrap, .controls { display: none; }
+    #display { max-width: 100%; min-height: 100vh; border: none; border-radius: 0; }
+    body { padding: 0; justify-content: center; }
+  }
+
+  #speedRow {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; color: #666;
+  }
+
+  /* ===== 全屏预览层 ===== */
+  #fullscreenLayer {
+    position: fixed; inset: 0;
+    background: rgba(0, 0, 0, .96);
+    z-index: 1000;
+    display: none;
+    align-items: center; justify-content: center;
+    overflow: hidden;
+    touch-action: none;
+  }
+  #fullscreenLayer.open { display: flex; }
+  #fsStage {
+    position: relative;
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    overflow: hidden;
+    cursor: grab;
+  }
+  #fsStage.dragging { cursor: grabbing; }
+  #fsStaticWrap {
+    display: none; width: 100%; height: 100%;
+    align-items: center; justify-content: center;
+  }
+  #fullscreenLayer.static #fsStaticWrap { display: flex; }
+  #fsImg {
+    max-width: 90%; max-height: 90%;
+    transform-origin: center center;
+    transition: transform .12s ease-out;
+    user-select: none; -webkit-user-drag: none;
+    will-change: transform;
+  }
+  #fsScrollWrap {
+    display: none; width: 100%; height: 100%;
+    align-items: center; justify-content: flex-start;
+    overflow: hidden;
+  }
+  #fullscreenLayer.scroll #fsScrollWrap { display: flex; }
+  .fsTrack {
+    display: flex; align-items: center;
+    height: 100%;
+    animation: fsMarquee var(--fsSpeed, 8s) linear infinite;
+    will-change: transform;
+  }
+  .fsTrack img {
+    height: 40vh; width: auto;
+    margin-right: 10vw;
+    flex-shrink: 0; max-width: none;
+  }
+  @keyframes fsMarquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  #fsBar {
+    position: fixed; bottom: 24px; left: 50%;
+    transform: translateX(-50%);
+    display: flex; gap: 10px; align-items: center;
+    padding: 10px 16px;
+    background: rgba(30, 30, 40, .85);
+    border: 1px solid #333;
+    border-radius: 999px;
+    z-index: 1001;
+    backdrop-filter: blur(10px);
+    max-width: calc(100vw - 32px);
+    flex-wrap: wrap; justify-content: center;
+  }
+  #fsBar button {
+    padding: 8px 16px; font-size: 14px;
+    border-radius: 999px;
+    border: 1px solid #444;
+    background: #1a1a22; color: #ddd;
+    cursor: pointer;
+  }
+  #fsBar button:hover { background: #26262f; }
+  #fsBar button.active { background: #6ee7ff; color: #0f0f14; border-color: #6ee7ff; font-weight: 600; }
+  #fsZoomVal {
+    font-size: 13px; color: #888;
+    min-width: 48px; text-align: center;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ===== 全屏手写层 ===== */
+  #padFullscreen {
+    position: fixed; inset: 0;
+    background: #0f0f14;
+    z-index: 1100;
+    display: none;
+    flex-direction: column;
+    touch-action: none;
+  }
+  #padFullscreen.open { display: flex; }
+
+  #padFsScroll {
+    flex: 1;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-x pan-y;
+    overscroll-behavior: contain;
+    background: #0f0f14;
+  }
+
+  #padFsCanvas {
+    display: block;
+    touch-action: none;
+    cursor: crosshair;
+    background: #0f0f14;
+  }
+
+  #padFsToolbar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 10px 16px 0;
+    background: rgba(30, 30, 40, .9);
+    border-top: 1px solid #333;
+  }
+  #padFsToolbar .swatches { flex-wrap: wrap; justify-content: center; }
+  #padFsToolbar .colorPreview {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid #444;
+    background: currentColor;
+    flex-shrink: 0;
+  }
+  #padFsBar {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    padding: 10px 16px 12px;
+    background: rgba(30, 30, 40, .9);
+  }
+  #padFsBar button, #padFsToolbar button {
+    padding: 9px 18px;
+    border-radius: 999px;
+    border: 1px solid #444;
+    background: #1a1a22;
+    color: #ddd;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  #padFsBar button:hover, #padFsToolbar button:hover { background: #26262f; }
+  #padFsBar button.active, #padFsToolbar button.active {
+    background: #6ee7ff; color: #0f0f14; border-color: #6ee7ff; font-weight: 600;
+  }
+  #padFsBar .primary { background: #6ee7ff; color: #0f0f14; border-color: #6ee7ff; font-weight: 600; }
+  #padFsToolbar input[type=color] {
+    width: 36px; height: 28px; border: 1px solid #333; border-radius: 8px;
+    background: #1a1a22; cursor: pointer; padding: 2px;
+  }
+</style>
+</head>
+<body>
+  <h1>写一句话，然后选择展示方式</h1>
+
+  <div id="padWrap">
+    <canvas id="pad"></canvas>
+    <div id="padHint">在这里手写（鼠标或手指）</div>
+  </div>
+
+  <div class="controls">
+    <button id="btnPadFullscreen">全屏手写</button>
+    <button id="btnCapture" disabled>生成笔迹</button>
+    <button id="btnUndo" disabled>撤销</button>
+    <button id="btnEraser">橡皮</button>
+    <button id="btnClear">清空</button>
+    <button id="btnStatic" class="active" disabled>静态</button>
+    <button id="btnScroll" disabled>滚动</button>
+    <button id="btnFullscreen" disabled>全屏预览</button>
+    <button id="btnCopy" disabled>复制图片</button>
+    <button id="btnDelete" disabled>删除</button>
+    <div class="sizeRow">
+      <span>粗细</span>
+      <input type="range" id="penSize" min="1" max="20" value="3" step="1">
+      <span id="penSizeVal">3</span>
+    </div>
+    <div class="sizeRow" id="speedRow" style="display:none;">
+      <span>速度</span>
+      <input type="range" id="speed" min="2" max="20" value="8" step="1">
+      <span id="speedVal">8s</span>
+    </div>
+    <div class="colorRow">
+      <span>笔迹颜色</span>
+      <div class="swatches" id="swatches">
+        <button class="swatch active" data-color="#e8e8f0" style="--c:#e8e8f0" title="白"></button>
+        <button class="swatch" data-color="#6ee7ff" style="--c:#6ee7ff" title="青"></button>
+        <button class="swatch" data-color="#a78bfa" style="--c:#a78bfa" title="紫"></button>
+        <button class="swatch" data-color="#f472b6" style="--c:#f472b6" title="粉"></button>
+        <button class="swatch" data-color="#feca57" style="--c:#feca57" title="黄"></button>
+        <button class="swatch" data-color="#51cf66" style="--c:#51cf66" title="绿"></button>
+        <button class="swatch" data-color="#ff6b6b" style="--c:#ff6b6b" title="红"></button>
+      </div>
+      <input type="color" id="inkColor" value="#e8e8f0" title="自定义颜色">
+    </div>
+  </div>
+
+  <div id="display">
+    <span id="emptyTip">生成的笔迹会显示在这里</span>
+  </div>
+
+  <!-- 全屏预览 -->
+  <div id="fullscreenLayer">
+    <div id="fsStage">
+      <div id="fsStaticWrap">
+        <img id="fsImg" alt="手写笔迹">
+      </div>
+      <div id="fsScrollWrap">
+        <div class="fsTrack">
+          <img class="fsScrollImg" alt="">
+          <img class="fsScrollImg" alt="">
+        </div>
+      </div>
+    </div>
+    <div id="fsBar">
+      <button id="fsModeStatic" class="active">静态</button>
+      <button id="fsModeScroll">滚动</button>
+      <button id="fsZoomOut">－</button>
+      <span id="fsZoomVal">100%</span>
+      <button id="fsZoomIn">＋</button>
+      <button id="fsReset">重置</button>
+      <button id="fsClose">关闭</button>
+    </div>
+  </div>
+
+  <!-- 全屏手写 -->
+  <div id="padFullscreen">
+    <div id="padFsScroll">
+      <canvas id="padFsCanvas"></canvas>
+    </div>
+    <div id="padFsToolbar">
+      <div class="colorPreview" id="fsColorPreview"></div>
+      <div class="swatches" id="fsSwatches">
+        <button class="swatch active" data-color="#e8e8f0" style="--c:#e8e8f0" title="白"></button>
+        <button class="swatch" data-color="#6ee7ff" style="--c:#6ee7ff" title="青"></button>
+        <button class="swatch" data-color="#a78bfa" style="--c:#a78bfa" title="紫"></button>
+        <button class="swatch" data-color="#f472b6" style="--c:#f472b6" title="粉"></button>
+        <button class="swatch" data-color="#feca57" style="--c:#feca57" title="黄"></button>
+        <button class="swatch" data-color="#51cf66" style="--c:#51cf66" title="绿"></button>
+        <button class="swatch" data-color="#ff6b6b" style="--c:#ff6b6b" title="红"></button>
+      </div>
+      <input type="color" id="fsInkColor" value="#e8e8f0" title="自定义颜色">
+      <div class="sizeRow">
+        <span>粗细</span>
+        <input type="range" id="fsPenSize" min="1" max="20" value="3" step="1">
+        <span id="fsPenSizeVal">3</span>
+      </div>
+      <button id="padFsUndo">撤销</button>
+      <button id="padFsEraser">橡皮</button>
+    </div>
+    <div id="padFsBar">
+      <button id="padFsClear">清空</button>
+      <button id="padFsDone" class="primary">完成</button>
+      <button id="padFsCancel">取消</button>
+    </div>
+  </div>
+
+<script>
+  const canvas = document.getElementById('pad');
+  const ctx = canvas.getContext('2d');
+  const padWrap = document.getElementById('padWrap');
+  const display = document.getElementById('display');
+  const btnPadFullscreen = document.getElementById('btnPadFullscreen');
+  const btnCapture = document.getElementById('btnCapture');
+  const btnUndo = document.getElementById('btnUndo');
+  const btnEraser = document.getElementById('btnEraser');
+  const btnClear = document.getElementById('btnClear');
+  const btnStatic = document.getElementById('btnStatic');
+  const btnScroll = document.getElementById('btnScroll');
+  const btnFullscreen = document.getElementById('btnFullscreen');
+  const btnCopy = document.getElementById('btnCopy');
+  const btnDelete = document.getElementById('btnDelete');
+  const speedRow = document.getElementById('speedRow');
+  const speedInput = document.getElementById('speed');
+  const speedVal = document.getElementById('speedVal');
+  const inkColorInput = document.getElementById('inkColor');
+  const swatches = document.querySelectorAll('#swatches .swatch');
+  const penSizeInput = document.getElementById('penSize');
+  const penSizeVal = document.getElementById('penSizeVal');
+
+  let hasInk = false;
+  let capturedBlob = null;
+  let mode = 'static';
+
+  let strokes = [];
+  let currentStroke = null;
+  let currentColor = '#e8e8f0';
+  let currentSize = 3;
+  let eraserOn = false;
+
+  // ===== 小画布绘制 =====
+  function redrawAll() {
+    const dpr = window.devicePixelRatio || 1;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const s of strokes) {
+      const pts = s.points;
+      ctx.strokeStyle = s.color;
+      ctx.fillStyle = s.color;
+      ctx.lineWidth = s.size || 3;
+      if (pts.length === 1) {
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, (s.size || 3) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+    updateUndoState();
+  }
+
+  function setupCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = rect.width * dpr;
+    canvas.height = rect.height * dpr;
+    redrawAll();
+  }
+
+  function pos(e, el) {
+    const rect = el.getBoundingClientRect();
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+  }
+
+  function distToSegment(p, a, b) {
+    const dx = b.x - a.x, dy = b.y - a.y;
+    if (dx === 0 && dy === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / (dx * dx + dy * dy);
+    t = Math.max(0, Math.min(1, t));
+    return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+  }
+
+  function hitStroke(strokesArr, p, threshold) {
+    for (let i = strokesArr.length - 1; i >= 0; i--) {
+      const s = strokesArr[i];
+      const pts = s.points;
+      const r = (s.size || 3) / 2 + threshold;
+      if (pts.length === 1) {
+        if (Math.hypot(p.x - pts[0].x, p.y - pts[0].y) <= r) return i;
+      } else {
+        for (let j = 0; j < pts.length - 1; j++) {
+          if (distToSegment(p, pts[j], pts[j + 1]) <= r) return i;
+        }
+      }
+    }
+    return -1;
+  }
+
+  let drawing = false;
+  canvas.addEventListener('pointerdown', e => {
+    const p = pos(e, canvas);
+    if (eraserOn) {
+      // 橡皮大小 = 当前粗细
+      const idx = hitStroke(strokes, p, currentSize);
+      if (idx >= 0) {
+        strokes.splice(idx, 1);
+        redrawAll();
+        if (strokes.length === 0) {
+          hasInk = false;
+          padWrap.classList.remove('hasInk');
+          btnCapture.disabled = true;
+        }
+      }
+      return;
+    }
+    drawing = true;
+    canvas.setPointerCapture(e.pointerId);
+    currentStroke = { points: [p], color: currentColor, size: currentSize };
+    strokes.push(currentStroke);
+    markInk();
+  });
+
+  canvas.addEventListener('pointermove', e => {
+    if (eraserOn) {
+      if (e.buttons === 0) return;
+      const p = pos(e, canvas);
+      const idx = hitStroke(strokes, p, currentSize);
+      if (idx >= 0) {
+        strokes.splice(idx, 1);
+        redrawAll();
+        if (strokes.length === 0) {
+          hasInk = false;
+          padWrap.classList.remove('hasInk');
+          btnCapture.disabled = true;
+        }
+      }
+      return;
+    }
+    if (!drawing || !currentStroke) return;
+    const p = pos(e, canvas);
+    const pts = currentStroke.points;
+    const prev = pts[pts.length - 1];
+    pts.push(p);
+    ctx.strokeStyle = currentStroke.color;
+    ctx.lineWidth = currentStroke.size;
+    ctx.beginPath();
+    ctx.moveTo(prev.x, prev.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+  });
+
+  canvas.addEventListener('pointerup', () => { drawing = false; currentStroke = null; });
+  canvas.addEventListener('pointercancel', () => { drawing = false; currentStroke = null; });
+
+  function markInk() {
+    if (!hasInk) {
+      hasInk = true;
+      padWrap.classList.add('hasInk');
+      btnCapture.disabled = false;
+    }
+    updateUndoState();
+  }
+
+  function updateUndoState() {
+    btnUndo.disabled = strokes.length === 0;
+  }
+
+  setupCanvas();
+  window.addEventListener('resize', () => {
+    if (!padFullscreen.classList.contains('open')) setupCanvas();
+  });
+
+  btnUndo.addEventListener('click', () => {
+    if (strokes.length === 0) return;
+    strokes.pop();
+    redrawAll();
+    if (strokes.length === 0) {
+      hasInk = false;
+      padWrap.classList.remove('hasInk');
+      btnCapture.disabled = true;
+    }
+  });
+
+  btnEraser.addEventListener('click', () => {
+    eraserOn = !eraserOn;
+    btnEraser.classList.toggle('active', eraserOn);
+    btnEraser.classList.toggle('danger', eraserOn);
+    canvas.style.cursor = eraserOn ? 'cell' : 'crosshair';
+  });
+
+  function setInkColor(color) {
+    currentColor = color;
+    inkColorInput.value = color;
+    fsInkColor.value = color;
+    fsColorPreview.style.color = color;
+    swatches.forEach(s => {
+      s.classList.toggle('active', s.dataset.color.toLowerCase() === color.toLowerCase());
+    });
+    fsSwatches.forEach(s => {
+      s.classList.toggle('active', s.dataset.color.toLowerCase() === color.toLowerCase());
+    });
+  }
+
+  swatches.forEach(s => {
+    s.addEventListener('click', () => setInkColor(s.dataset.color));
+  });
+  inkColorInput.addEventListener('input', () => setInkColor(inkColorInput.value));
+
+  // 粗细统一：一个滑块同时控制画笔和橡皮
+  function setSize(size) {
+    currentSize = size;
+    penSizeInput.value = size;
+    penSizeVal.textContent = size;
+    fsPenSize.value = size;
+    fsPenSizeVal.textContent = size;
+  }
+
+  penSizeInput.addEventListener('input', () => setSize(parseInt(penSizeInput.value, 10)));
+
+  // ===== 全屏手写 =====
+  const padFullscreen = document.getElementById('padFullscreen');
+  const padFsScroll = document.getElementById('padFsScroll');
+  const padFsCanvas = document.getElementById('padFsCanvas');
+  const fsCtx = padFsCanvas.getContext('2d');
+  const padFsClear = document.getElementById('padFsClear');
+  const padFsDone = document.getElementById('padFsDone');
+  const padFsCancel = document.getElementById('padFsCancel');
+  const padFsUndo = document.getElementById('padFsUndo');
+  const padFsEraser = document.getElementById('padFsEraser');
+  const fsInkColor = document.getElementById('fsInkColor');
+  const fsSwatches = document.querySelectorAll('#fsSwatches .swatch');
+  const fsColorPreview = document.getElementById('fsColorPreview');
+  const fsPenSize = document.getElementById('fsPenSize');
+  const fsPenSizeVal = document.getElementById('fsPenSizeVal');
+
+  const FS_CANVAS_W = 2000;
+  const FS_CANVAS_H = 1500;
+
+  let fsDrawing = false;
+  let fsCurrentStroke = null;
+  let fsStrokes = [];
+  let fsEraserOn = false;
+
+  function setupPadFsCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    padFsCanvas.style.width = FS_CANVAS_W + 'px';
+    padFsCanvas.style.height = FS_CANVAS_H + 'px';
+    padFsCanvas.width = FS_CANVAS_W * dpr;
+    padFsCanvas.height = FS_CANVAS_H * dpr;
+    redrawPadFs();
+  }
+
+  function redrawPadFs() {
+    const dpr = window.devicePixelRatio || 1;
+    fsCtx.setTransform(1, 0, 0, 1, 0, 0);
+    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
+    fsCtx.scale(dpr, dpr);
+    fsCtx.lineCap = 'round';
+    fsCtx.lineJoin = 'round';
+    for (const s of fsStrokes) {
+      const pts = s.points;
+      fsCtx.strokeStyle = s.color;
+      fsCtx.fillStyle = s.color;
+      fsCtx.lineWidth = s.size || 3;
+      if (pts.length === 1) {
+        fsCtx.beginPath();
+        fsCtx.arc(pts[0].x, pts[0].y, (s.size || 3) / 2, 0, Math.PI * 2);
+        fsCtx.fill();
+      } else {
+        fsCtx.beginPath();
+        fsCtx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) fsCtx.lineTo(pts[i].x, pts[i].y);
+        fsCtx.stroke();
+      }
+    }
+    padFsUndo.disabled = fsStrokes.length === 0;
+  }
+
+  function getStrokesBounds(strokesArr) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const s of strokesArr) {
+      for (const p of s.points) {
+        if (p.x < minX) minX = p.x;
+        if (p.y < minY) minY = p.y;
+        if (p.x > maxX) maxX = p.x;
+        if (p.y > maxY) maxY = p.y;
+      }
+    }
+    if (minX === Infinity) return null;
+    return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
+  }
+
+  // 小画布 -> 全屏：等比放大居中
+  function mapSmallToFs(smallStrokes, smallRect, fsW, fsH) {
+    const bounds = getStrokesBounds(smallStrokes);
+    if (!bounds) return [];
+    const pad = 20;
+    const srcW = bounds.w + pad * 2;
+    const srcH = bounds.h + pad * 2;
+    const scale = Math.min(fsW / srcW, fsH / srcH, 3);
+    const mappedW = srcW * scale;
+    const mappedH = srcH * scale;
+    const offsetX = (fsW - mappedW) / 2 + pad * scale;
+    const offsetY = (fsH - mappedH) / 2 + pad * scale;
+
+    return smallStrokes.map(s => ({
+      color: s.color,
+      size: (s.size || 3) * scale,
+      points: s.points.map(p => ({
+        x: (p.x - bounds.minX) * scale + offsetX,
+        y: (p.y - bounds.minY) * scale + offsetY
+      }))
+    }));
+  }
+
+  // 全屏 -> 小画布：只映射有笔迹的区域，等比缩放居中
+  function mapFsToSmall(fsStrokesArr, smallRect) {
+    const bounds = getStrokesBounds(fsStrokesArr);
+    if (!bounds) return [];
+    const pad = 20;
+    const srcW = bounds.w + pad * 2;
+    const srcH = bounds.h + pad * 2;
+    const scale = Math.min(smallRect.width / srcW, smallRect.height / srcH);
+    const mappedW = srcW * scale;
+    const mappedH = srcH * scale;
+    const offsetX = (smallRect.width - mappedW) / 2 + pad * scale;
+    const offsetY = (smallRect.height - mappedH) / 2 + pad * scale;
+
+    return fsStrokesArr.map(s => ({
+      color: s.color,
+      size: (s.size || 3) * scale,
+      points: s.points.map(p => ({
+        x: (p.x - bounds.minX) * scale + offsetX,
+        y: (p.y - bounds.minY) * scale + offsetY
+      }))
+    }));
+  }
+
+  btnPadFullscreen.addEventListener('click', () => {
+    padFullscreen.classList.add('open');
+    requestAnimationFrame(() => {
+      setupPadFsCanvas();
+      // 同步小画布已有笔画到全屏
+      if (strokes.length > 0) {
+        const smallRect = canvas.getBoundingClientRect();
+        fsStrokes = mapSmallToFs(strokes, smallRect, FS_CANVAS_W, FS_CANVAS_H);
+      } else {
+        fsStrokes = [];
+      }
+      fsCurrentStroke = null;
+      fsEraserOn = false;
+      padFsEraser.classList.remove('active');
+      padFsEraser.classList.remove('danger');
+      padFsCanvas.style.cursor = 'crosshair';
+      redrawPadFs();
+      padFsScroll.scrollTop = 0;
+      padFsScroll.scrollLeft = 0;
+      // 同步工具栏
+      fsPenSize.value = currentSize;
+      fsPenSizeVal.textContent = currentSize;
+      fsInkColor.value = currentColor;
+      fsColorPreview.style.color = currentColor;
+      fsSwatches.forEach(s => {
+        s.classList.toggle('active', s.dataset.color.toLowerCase() === currentColor.toLowerCase());
+      });
+    });
+  });
+
+  padFsCanvas.addEventListener('pointerdown', e => {
+    const p = pos(e, padFsCanvas);
+    if (fsEraserOn) {
+      const idx = hitStroke(fsStrokes, p, currentSize);
+      if (idx >= 0) {
+        fsStrokes.splice(idx, 1);
+        redrawPadFs();
+      }
+      return;
+    }
+    fsDrawing = true;
+    padFsCanvas.setPointerCapture(e.pointerId);
+    fsCurrentStroke = { points: [p], color: currentColor, size: currentSize };
+    fsStrokes.push(fsCurrentStroke);
+  });
+
+  padFsCanvas.addEventListener('pointermove', e => {
+    if (fsEraserOn) {
+      if (e.buttons === 0) return;
+      const p = pos(e, padFsCanvas);
+      const idx = hitStroke(fsStrokes, p, currentSize);
+      if (idx >= 0) {
+        fsStrokes.splice(idx, 1);
+        redrawPadFs();
+      }
+      return;
+    }
+    if (!fsDrawing || !fsCurrentStroke) return;
+    const p = pos(e, padFsCanvas);
+    const pts = fsCurrentStroke.points;
+    const prev = pts[pts.length - 1];
+    pts.push(p);
+    fsCtx.strokeStyle = fsCurrentStroke.color;
+    fsCtx.lineWidth = fsCurrentStroke.size;
+    fsCtx.beginPath();
+    fsCtx.moveTo(prev.x, prev.y);
+    fsCtx.lineTo(p.x, p.y);
+    fsCtx.stroke();
+  });
+
+  padFsCanvas.addEventListener('pointerup', () => { fsDrawing = false; fsCurrentStroke = null; });
+  padFsCanvas.addEventListener('pointercancel', () => { fsDrawing = false; fsCurrentStroke = null; });
+
+  // 全屏清空：清空 fsStrokes，并同步清空小画布
+  padFsClear.addEventListener('click', () => {
+    fsStrokes = [];
+    fsCurrentStroke = null;
+    redrawPadFs();
+    // 同步清空小画布
+    strokes = [];
+    redrawAll();
+    hasInk = false;
+    padWrap.classList.remove('hasInk');
+    btnCapture.disabled = true;
+  });
+
+  padFsUndo.addEventListener('click', () => {
+    if (fsStrokes.length === 0) return;
+    fsStrokes.pop();
+    redrawPadFs();
+  });
+
+  padFsEraser.addEventListener('click', () => {
+    fsEraserOn = !fsEraserOn;
+    padFsEraser.classList.toggle('active', fsEraserOn);
+    padFsEraser.classList.toggle('danger', fsEraserOn);
+    padFsCanvas.style.cursor = fsEraserOn ? 'cell' : 'crosshair';
+  });
+
+  fsSwatches.forEach(s => {
+    s.addEventListener('click', () => setInkColor(s.dataset.color));
+  });
+  fsInkColor.addEventListener('input', () => setInkColor(fsInkColor.value));
+
+  fsPenSize.addEventListener('input', () => setSize(parseInt(fsPenSize.value, 10)));
+
+  // 完成：用全屏的全部笔画覆盖小画布，保证清空/橡皮/新增都同步
+  padFsDone.addEventListener('click', () => {
+    const smallRect = canvas.getBoundingClientRect();
+    if (fsStrokes.length === 0) {
+      strokes = [];
+    } else {
+      strokes = mapFsToSmall(fsStrokes, smallRect);
+    }
+    redrawAll();
+    if (strokes.length === 0) {
+      hasInk = false;
+      padWrap.classList.remove('hasInk');
+      btnCapture.disabled = true;
+    } else {
+      markInk();
+    }
+    closePadFullscreen();
+  });
+
+  padFsCancel.addEventListener('click', closePadFullscreen);
+
+  function closePadFullscreen() {
+    padFullscreen.classList.remove('open');
+    fsStrokes = [];
+    fsCurrentStroke = null;
+    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
+  }
+
+  // ===== 生成 / 展示 =====
+  function captureInk() {
+    const w = canvas.width, h = canvas.height;
+    const imgData = ctx.getImageData(0, 0, w, h).data;
+    let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
+    for (let y = 0; y < h; y++) {
+      for (let x = 0; x < w; x++) {
+        const a = imgData[(y * w + x) * 4 + 3];
+        if (a > 10) {
+          found = true;
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+        }
+      }
+    }
+    if (!found) return null;
+    const pad = 8;
+    minX = Math.max(0, minX - pad);
+    minY = Math.max(0, minY - pad);
+    maxX = Math.min(w - 1, maxX + pad);
+    maxY = Math.min(h - 1, maxY + pad);
+    const cw = maxX - minX + 1, ch = maxY - minY + 1;
+
+    const tmp = document.createElement('canvas');
+    tmp.width = cw; tmp.height = ch;
+    tmp.getContext('2d').drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
+    return tmp;
+  }
+
+  function render() {
+    display.innerHTML = '';
+    display.classList.remove('static', 'scroll');
+    display.classList.add(mode);
+    if (!capturedBlob) return;
+
+    const url = URL.createObjectURL(capturedBlob);
+    if (mode === 'static') {
+      const img = new Image();
+      img.src = url;
+      img.onload = () => URL.revokeObjectURL(url);
+      display.appendChild(img);
+    } else {
+      const track = document.createElement('div');
+      track.className = 'track';
+      track.style.setProperty('--speed', speedInput.value + 's');
+      for (let i = 0; i < 2; i++) {
+        const img = new Image();
+        img.src = url;
+        track.appendChild(img);
+      }
+      display.appendChild(track);
+    }
+    display.classList.add('hasContent');
+  }
+
+  btnCapture.addEventListener('click', () => {
+    const tmp = captureInk();
+    if (!tmp) return;
+    tmp.toBlob(blob => {
+      capturedBlob = blob;
+      render();
+      [btnStatic, btnScroll, btnCopy, btnDelete, btnFullscreen].forEach(b => b.disabled = false);
+      speedRow.style.display = mode === 'scroll' ? 'flex' : 'none';
+      display.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 'image/png');
+  });
+
+  btnClear.addEventListener('click', () => {
+    strokes = [];
+    currentStroke = null;
+    redrawAll();
+    hasInk = false;
+    padWrap.classList.remove('hasInk');
+    btnCapture.disabled = true;
+  });
+
+  function setDisplayMode(next) {
+    mode = next;
+    btnStatic.classList.toggle('active', next === 'static');
+    btnScroll.classList.toggle('active', next === 'scroll');
+    speedRow.style.display = next === 'scroll' ? 'flex' : 'none';
+    render();
+    if (fullscreenLayer.classList.contains('open')) {
+      setFullscreenMode(next);
+    }
+  }
+
+  btnStatic.addEventListener('click', () => setDisplayMode('static'));
+  btnScroll.addEventListener('click', () => setDisplayMode('scroll'));
+
+  speedInput.addEventListener('input', () => {
+    speedVal.textContent = speedInput.value + 's';
+    const track = display.querySelector('.track');
+    if (track) track.style.setProperty('--speed', speedInput.value + 's');
+    const fsTrack = document.querySelector('.fsTrack');
+    if (fsTrack) fsTrack.style.setProperty('--fsSpeed', speedInput.value + 's');
+  });
+
+  btnCopy.addEventListener('click', async () => {
+    if (!capturedBlob) return;
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({ 'image/png': capturedBlob })
+      ]);
+      btnCopy.textContent = '已复制';
+      setTimeout(() => btnCopy.textContent = '复制图片', 1200);
+    } catch (e) {
+      btnCopy.textContent = '复制失败';
+      setTimeout(() => btnCopy.textContent = '复制图片', 1200);
+    }
+  });
+
+  btnDelete.addEventListener('click', () => {
+    capturedBlob = null;
+    display.innerHTML = '<span id="emptyTip">生成的笔迹会显示在这里</span>';
+    display.className = '';
+    [btnStatic, btnScroll, btnCopy, btnDelete, btnFullscreen].forEach(b => b.disabled = true);
+    btnStatic.classList.add('active');
+    btnScroll.classList.remove('active');
+    speedRow.style.display = 'none';
+  });
+
+  // ===== 全屏预览 =====
+  const fullscreenLayer = document.getElementById('fullscreenLayer');
+  const fsStage = document.getElementById('fsStage');
+  const fsImg = document.getElementById('fsImg');
+  const fsScrollImgs = document.querySelectorAll('.fsScrollImg');
+  const fsTrack = document.querySelector('.fsTrack');
+  const fsZoomVal = document.getElementById('fsZoomVal');
+  const fsZoomIn = document.getElementById('fsZoomIn');
+  const fsZoomOut = document.getElementById('fsZoomOut');
+  const fsReset = document.getElementById('fsReset');
+  const fsClose = document.getElementById('fsClose');
+  const fsModeStatic = document.getElementById('fsModeStatic');
+  const fsModeScroll = document.getElementById('fsModeScroll');
+
+  let fsScale = 1;
+  const fsMin = 0.5;
+  const fsMax = 8;
+  let fsOffsetXPrev = 0;
+  let fsOffsetYPrev = 0;
+  let fsDragging = false;
+  let fsLastX = 0;
+  let fsLastY = 0;
+  let pinchStartDist = 0;
+  let pinchStartScale = 1;
+  const fsPointers = new Map();
+
+  function fsApply() {
+    fsImg.style.transform =
+      `translate(${fsOffsetXPrev}px, ${fsOffsetYPrev}px) scale(${fsScale})`;
+    fsZoomVal.textContent = Math.round(fsScale * 100) + '%';
+  }
+
+  function fsResetView() {
+    fsScale = 1;
+    fsOffsetXPrev = 0;
+    fsOffsetYPrev = 0;
+    fsApply();
+  }
+
+  function fsSetScale(next) {
+    fsScale = Math.min(fsMax, Math.max(fsMin, next));
+    fsApply();
+  }
+
+  function setFullscreenMode(next) {
+    fullscreenLayer.classList.remove('static', 'scroll');
+    fullscreenLayer.classList.add(next);
+    fsModeStatic.classList.toggle('active', next === 'static');
+    fsModeScroll.classList.toggle('active', next === 'scroll');
+    fsResetView();
+  }
+
+  function openFullscreen() {
+    if (!capturedBlob) return;
+    const url = URL.createObjectURL(capturedBlob);
+    fsImg.onload = () => URL.revokeObjectURL(url);
+    fsImg.src = url;
+    fsScrollImgs.forEach(img => { img.src = url; });
+    fsTrack.style.setProperty('--fsSpeed', speedInput.value + 's');
+    setFullscreenMode(mode);
+    fsResetView();
+    fullscreenLayer.classList.add('open');
+  }
+
+  function closeFullscreen() {
+    fullscreenLayer.classList.remove('open');
+    fsImg.src = '';
+    fsScrollImgs.forEach(img => { img.src = ''; });
+    fsPointers.clear();
+    pinchStartDist = 0;
+  }
+
+  btnFullscreen.addEventListener('click', openFullscreen);
+  fsClose.addEventListener('click', closeFullscreen);
+  fsModeStatic.addEventListener('click', () => setFullscreenMode('static'));
+  fsModeScroll.addEventListener('click', () => setFullscreenMode('scroll'));
+
+  fsZoomIn.addEventListener('click', () => fsSetScale(fsScale * 1.25));
+  fsZoomOut.addEventListener('click', () => fsSetScale(fsScale / 1.25));
+  fsReset.addEventListener('click', fsResetView);
+
+  fsStage.addEventListener('wheel', e => {
+    if (!fullscreenLayer.classList.contains('static')) return;
+    e.preventDefault();
+    const factor = e.deltaY < 0 ? 1.1 : 1 / 1.1;
+    fsSetScale(fsScale * factor);
+  }, { passive: false });
+
+  fsStage.addEventListener('pointerdown', e => {
+    if (!fullscreenLayer.classList.contains('static')) return;
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    fsStage.setPointerCapture(e.pointerId);
+    if (e.pointerType === 'touch') {
+      fsPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    }
+    fsDragging = true;
+    fsLastX = e.clientX;
+    fsLastY = e.clientY;
+    fsStage.classList.add('dragging');
+  });
+
+  fsStage.addEventListener('pointermove', e => {
+    if (!fsDragging) return;
+    if (e.pointerType === 'touch' && fsPointers.has(e.pointerId)) {
+      fsPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      const pts = [...fsPointers.values()];
+      if (pts.length === 2) {
+        const dist = Math.hypot(pts[0].x - pts[1].x, pts[0].y - pts[1].y);
+        if (pinchStartDist === 0) {
+          pinchStartDist = dist;
+          pinchStartScale = fsScale;
+        } else {
+          fsSetScale(pinchStartScale * (dist / pinchStartDist));
+          return;
+        }
+      }
+    }
+    const dx = e.clientX - fsLastX;
+    const dy = e.clientY - fsLastY;
+    fsOffsetXPrev += dx;
+    fsOffsetYPrev += dy;
+    fsLastX = e.clientX;
+    fsLastY = e.clientY;
+    fsApply();
+  });
+
+  function fsPointerUp(e) {
+    fsDragging = false;
+    fsStage.classList.remove('dragging');
+    if (e.pointerType === 'touch') {
+      fsPointers.delete(e.pointerId);
+      if (fsPointers.size < 2) pinchStartDist = 0;
+    }
+  }
+  fsStage.addEventListener('pointerup', fsPointerUp);
+  fsStage.addEventListener('pointercancel', fsPointerUp);
+
+  fsStage.addEventListener('dblclick', () => {
+    if (fullscreenLayer.classList.contains('static')) fsResetView();
+  });
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      if (padFullscreen.classList.contains('open')) closePadFullscreen();
+      else if (fullscreenLayer.classList.contains('open')) closeFullscreen();
+    }
+  });
+</script>
+</body>
+</html>
