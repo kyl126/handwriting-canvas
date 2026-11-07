@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>手写笔迹 · 多色画布</title>
+<title>全屏手写 · 多色画布</title>
 <style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
@@ -19,29 +19,46 @@
   }
   h1 { font-size: 16px; font-weight: 400; color: #666; letter-spacing: 2px; }
 
-  #padWrap { width: 100%; max-width: 720px; position: relative; }
-  #pad {
+  #display {
     width: 100%;
-    height: 180px;
-    background: #1a1a22;
-    border: 1px dashed #333;
+    max-width: 900px;
+    min-height: 120px;
+    border: 1px solid #222;
     border-radius: 12px;
-    touch-action: none;
-    cursor: crosshair;
-    display: block;
-  }
-  #padHint {
-    position: absolute;
-    inset: 0;
+    background: #14141a;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #444;
-    font-size: 14px;
-    pointer-events: none;
-    transition: opacity .2s;
+    overflow: hidden;
+    position: relative;
+    scroll-margin-top: 20px;
   }
-  #padWrap.hasInk #padHint { opacity: 0; }
+  #display.static img { max-width: 90%; max-height: 160px; object-fit: contain; }
+  #display.scroll { justify-content: flex-start; }
+  #display.scroll .track {
+    display: flex;
+    align-items: center;
+    height: 160px;
+    animation: marquee var(--speed, 8s) linear infinite;
+    will-change: transform;
+  }
+  #display.scroll .track img {
+    height: 120px; width: auto;
+    margin-right: 80px;
+    flex-shrink: 0;
+  }
+  @keyframes marquee {
+    from { transform: translateX(0); }
+    to   { transform: translateX(-50%); }
+  }
+  #emptyTip { color: #333; font-size: 14px; }
+  #display.hasContent #emptyTip { display: none; }
+
+  @media (orientation: landscape) and (max-height: 500px) {
+    h1 { display: none; }
+    #display { max-width: 100%; min-height: 100vh; border: none; border-radius: 0; }
+    body { padding: 0; justify-content: center; }
+  }
 
   .controls {
     display: flex;
@@ -105,53 +122,11 @@
   }
   input[type=range] { width: 120px; accent-color: #6ee7ff; }
 
-  #display {
-    width: 100%;
-    max-width: 900px;
-    min-height: 120px;
-    border: 1px solid #222;
-    border-radius: 12px;
-    background: #14141a;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    position: relative;
-    scroll-margin-top: 20px;
-  }
-  #display.static img { max-width: 90%; max-height: 160px; object-fit: contain; }
-  #display.scroll { justify-content: flex-start; }
-  #display.scroll .track {
-    display: flex;
-    align-items: center;
-    height: 160px;
-    animation: marquee var(--speed, 8s) linear infinite;
-    will-change: transform;
-  }
-  #display.scroll .track img {
-    height: 120px; width: auto;
-    margin-right: 80px;
-    flex-shrink: 0;
-  }
-  @keyframes marquee {
-    from { transform: translateX(0); }
-    to   { transform: translateX(-50%); }
-  }
-  #emptyTip { color: #333; font-size: 14px; }
-  #display.hasContent #emptyTip { display: none; }
-
-  @media (orientation: landscape) and (max-height: 500px) {
-    h1, #padWrap, .controls { display: none; }
-    #display { max-width: 100%; min-height: 100vh; border: none; border-radius: 0; }
-    body { padding: 0; justify-content: center; }
-  }
-
   #speedRow {
     display: flex; align-items: center; gap: 8px;
     font-size: 13px; color: #666;
   }
 
-  /* ===== 全屏预览层 ===== */
   #fullscreenLayer {
     position: fixed; inset: 0;
     background: rgba(0, 0, 0, .96);
@@ -231,7 +206,6 @@
     font-variant-numeric: tabular-nums;
   }
 
-  /* ===== 全屏手写层 ===== */
   #padFullscreen {
     position: fixed; inset: 0;
     background: #0f0f14;
@@ -249,6 +223,7 @@
     touch-action: pan-x pan-y;
     overscroll-behavior: contain;
     background: #0f0f14;
+    position: relative;
   }
 
   #padFsCanvas {
@@ -257,6 +232,20 @@
     cursor: crosshair;
     background: #0f0f14;
   }
+
+  #padFsHint {
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    pointer-events: none;
+    color: #444;
+    font-size: 16px;
+    z-index: 10;
+    opacity: 1;
+    transition: opacity .2s;
+    white-space: nowrap;
+  }
+  #padFullscreen.hasInk #padFsHint { opacity: 0; }
 
   #padFsToolbar {
     display: flex;
@@ -303,32 +292,54 @@
     width: 36px; height: 28px; border: 1px solid #333; border-radius: 8px;
     background: #1a1a22; cursor: pointer; padding: 2px;
   }
+
+  .smoothGroup {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: #1a1a22;
+    padding: 3px;
+    border-radius: 999px;
+    border: 1px solid #333;
+  }
+  .smoothGroup span {
+    font-size: 12px; color: #888;
+    padding: 0 6px 0 8px;
+  }
+  .smoothGroup button {
+    padding: 5px 10px;
+    font-size: 12px;
+    border-radius: 999px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+  }
+  .smoothGroup button:hover { background: #26262f; }
+  .smoothGroup button.active {
+    background: #6ee7ff;
+    color: #0f0f14;
+    font-weight: 600;
+  }
+
+  .toolbarGroup {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
 </style>
 </head>
 <body>
   <h1>写一句话，然后选择展示方式</h1>
 
-  <div id="padWrap">
-    <canvas id="pad"></canvas>
-    <div id="padHint">在这里手写（鼠标或手指）</div>
-  </div>
-
   <div class="controls">
     <button id="btnPadFullscreen">全屏手写</button>
-    <button id="btnCapture" disabled>生成笔迹</button>
-    <button id="btnUndo" disabled>撤销</button>
-    <button id="btnEraser">橡皮</button>
-    <button id="btnClear">清空</button>
     <button id="btnStatic" class="active" disabled>静态</button>
     <button id="btnScroll" disabled>滚动</button>
     <button id="btnFullscreen" disabled>全屏预览</button>
     <button id="btnCopy" disabled>复制图片</button>
     <button id="btnDelete" disabled>删除</button>
-    <div class="sizeRow">
-      <span>粗细</span>
-      <input type="range" id="penSize" min="1" max="20" value="3" step="1">
-      <span id="penSizeVal">3</span>
-    </div>
     <div class="sizeRow" id="speedRow" style="display:none;">
       <span>速度</span>
       <input type="range" id="speed" min="2" max="20" value="8" step="1">
@@ -353,7 +364,6 @@
     <span id="emptyTip">生成的笔迹会显示在这里</span>
   </div>
 
-  <!-- 全屏预览 -->
   <div id="fullscreenLayer">
     <div id="fsStage">
       <div id="fsStaticWrap">
@@ -377,30 +387,39 @@
     </div>
   </div>
 
-  <!-- 全屏手写 -->
   <div id="padFullscreen">
     <div id="padFsScroll">
       <canvas id="padFsCanvas"></canvas>
+      <div id="padFsHint">在这里手写（鼠标或手指）</div>
     </div>
     <div id="padFsToolbar">
-      <div class="colorPreview" id="fsColorPreview"></div>
-      <div class="swatches" id="fsSwatches">
-        <button class="swatch active" data-color="#e8e8f0" style="--c:#e8e8f0" title="白"></button>
-        <button class="swatch" data-color="#6ee7ff" style="--c:#6ee7ff" title="青"></button>
-        <button class="swatch" data-color="#a78bfa" style="--c:#a78bfa" title="紫"></button>
-        <button class="swatch" data-color="#f472b6" style="--c:#f472b6" title="粉"></button>
-        <button class="swatch" data-color="#feca57" style="--c:#feca57" title="黄"></button>
-        <button class="swatch" data-color="#51cf66" style="--c:#51cf66" title="绿"></button>
-        <button class="swatch" data-color="#ff6b6b" style="--c:#ff6b6b" title="红"></button>
+      <div class="toolbarGroup">
+        <div class="colorPreview" id="fsColorPreview"></div>
+        <div class="swatches" id="fsSwatches">
+          <button class="swatch active" data-color="#e8e8f0" style="--c:#e8e8f0" title="白"></button>
+          <button class="swatch" data-color="#6ee7ff" style="--c:#6ee7ff" title="青"></button>
+          <button class="swatch" data-color="#a78bfa" style="--c:#a78bfa" title="紫"></button>
+          <button class="swatch" data-color="#f472b6" style="--c:#f472b6" title="粉"></button>
+          <button class="swatch" data-color="#feca57" style="--c:#feca57" title="黄"></button>
+          <button class="swatch" data-color="#51cf66" style="--c:#51cf66" title="绿"></button>
+          <button class="swatch" data-color="#ff6b6b" style="--c:#ff6b6b" title="红"></button>
+        </div>
+        <input type="color" id="fsInkColor" value="#e8e8f0" title="自定义颜色">
+        <div class="sizeRow">
+          <span>粗细</span>
+          <input type="range" id="fsPenSize" min="1" max="20" value="3" step="1">
+          <span id="fsPenSizeVal">3</span>
+        </div>
+        <div class="smoothGroup" id="smoothGroup">
+          <span>平滑</span>
+          <button data-smooth="0" class="active">关</button>
+          <button data-smooth="1">弱</button>
+          <button data-smooth="2">中</button>
+          <button data-smooth="3">强</button>
+        </div>
+        <button id="padFsUndo">撤销</button>
+        <button id="padFsEraser">橡皮</button>
       </div>
-      <input type="color" id="fsInkColor" value="#e8e8f0" title="自定义颜色">
-      <div class="sizeRow">
-        <span>粗细</span>
-        <input type="range" id="fsPenSize" min="1" max="20" value="3" step="1">
-        <span id="fsPenSizeVal">3</span>
-      </div>
-      <button id="padFsUndo">撤销</button>
-      <button id="padFsEraser">橡皮</button>
     </div>
     <div id="padFsBar">
       <button id="padFsClear">清空</button>
@@ -410,15 +429,9 @@
   </div>
 
 <script>
-  const canvas = document.getElementById('pad');
-  const ctx = canvas.getContext('2d');
-  const padWrap = document.getElementById('padWrap');
+  // ===== 全局状态 =====
   const display = document.getElementById('display');
   const btnPadFullscreen = document.getElementById('btnPadFullscreen');
-  const btnCapture = document.getElementById('btnCapture');
-  const btnUndo = document.getElementById('btnUndo');
-  const btnEraser = document.getElementById('btnEraser');
-  const btnClear = document.getElementById('btnClear');
   const btnStatic = document.getElementById('btnStatic');
   const btnScroll = document.getElementById('btnScroll');
   const btnFullscreen = document.getElementById('btnFullscreen');
@@ -429,56 +442,43 @@
   const speedVal = document.getElementById('speedVal');
   const inkColorInput = document.getElementById('inkColor');
   const swatches = document.querySelectorAll('#swatches .swatch');
-  const penSizeInput = document.getElementById('penSize');
-  const penSizeVal = document.getElementById('penSizeVal');
 
-  let hasInk = false;
   let capturedBlob = null;
   let mode = 'static';
 
-  let strokes = [];
-  let currentStroke = null;
   let currentColor = '#e8e8f0';
   let currentSize = 3;
-  let eraserOn = false;
 
-  // ===== 小画布绘制 =====
-  function redrawAll() {
-    const dpr = window.devicePixelRatio || 1;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.scale(dpr, dpr);
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    for (const s of strokes) {
-      const pts = s.points;
-      ctx.strokeStyle = s.color;
-      ctx.fillStyle = s.color;
-      ctx.lineWidth = s.size || 3;
-      if (pts.length === 1) {
-        ctx.beginPath();
-        ctx.arc(pts[0].x, pts[0].y, (s.size || 3) / 2, 0, Math.PI * 2);
-        ctx.fill();
-      } else {
-        ctx.beginPath();
-        ctx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
-        ctx.stroke();
-      }
-    }
-    ctx.restore();
-    updateUndoState();
-  }
+  // 平滑档位：0关 1弱 2中 3强
+  let smoothLevel = 0;
 
-  function setupCanvas() {
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    redrawAll();
-  }
+  // ===== 全屏手写 =====
+  const padFullscreen = document.getElementById('padFullscreen');
+  const padFsScroll = document.getElementById('padFsScroll');
+  const padFsCanvas = document.getElementById('padFsCanvas');
+  const fsCtx = padFsCanvas.getContext('2d');
+  const padFsHint = document.getElementById('padFsHint');
+  const padFsClear = document.getElementById('padFsClear');
+  const padFsDone = document.getElementById('padFsDone');
+  const padFsCancel = document.getElementById('padFsCancel');
+  const padFsUndo = document.getElementById('padFsUndo');
+  const padFsEraser = document.getElementById('padFsEraser');
+  const fsInkColor = document.getElementById('fsInkColor');
+  const fsSwatches = document.querySelectorAll('#fsSwatches .swatch');
+  const fsColorPreview = document.getElementById('fsColorPreview');
+  const fsPenSize = document.getElementById('fsPenSize');
+  const fsPenSizeVal = document.getElementById('fsPenSizeVal');
+  const smoothGroup = document.getElementById('smoothGroup');
 
+  const FS_CANVAS_W = 2000;
+  const FS_CANVAS_H = 1500;
+
+  let fsDrawing = false;
+  let fsCurrentStroke = null;
+  let fsStrokes = [];
+  let fsEraserOn = false;
+
+  // ===== 工具函数 =====
   function pos(e, el) {
     const rect = el.getBoundingClientRect();
     return { x: e.clientX - rect.left, y: e.clientY - rect.top };
@@ -508,98 +508,304 @@
     return -1;
   }
 
-  let drawing = false;
-  canvas.addEventListener('pointerdown', e => {
-    const p = pos(e, canvas);
-    if (eraserOn) {
-      // 橡皮大小 = 当前粗细
-      const idx = hitStroke(strokes, p, currentSize);
-      if (idx >= 0) {
-        strokes.splice(idx, 1);
-        redrawAll();
-        if (strokes.length === 0) {
-          hasInk = false;
-          padWrap.classList.remove('hasInk');
-          btnCapture.disabled = true;
-        }
+  // ===== 平滑算法 =====
+  // 步骤1：移动平均滤波，去除抖动噪声
+  function movingAverage(points, windowSize) {
+    if (points.length <= 2) return points.slice();
+    const result = [];
+    const half = Math.floor(windowSize / 2);
+    for (let i = 0; i < points.length; i++) {
+      let sumX = 0, sumY = 0, count = 0;
+      const start = Math.max(0, i - half);
+      const end = Math.min(points.length - 1, i + half);
+      for (let j = start; j <= end; j++) {
+        sumX += points[j].x;
+        sumY += points[j].y;
+        count++;
       }
-      return;
+      result.push({ x: sumX / count, y: sumY / count });
     }
-    drawing = true;
-    canvas.setPointerCapture(e.pointerId);
-    currentStroke = { points: [p], color: currentColor, size: currentSize };
-    strokes.push(currentStroke);
-    markInk();
-  });
+    return result;
+  }
 
-  canvas.addEventListener('pointermove', e => {
-    if (eraserOn) {
-      if (e.buttons === 0) return;
-      const p = pos(e, canvas);
-      const idx = hitStroke(strokes, p, currentSize);
-      if (idx >= 0) {
-        strokes.splice(idx, 1);
-        redrawAll();
-        if (strokes.length === 0) {
-          hasInk = false;
-          padWrap.classList.remove('hasInk');
-          btnCapture.disabled = true;
-        }
-      }
+  // 步骤2：用二次贝塞尔曲线绘制（通过中点连接），使线条自然圆润
+  function drawSmoothStroke(ctx, points) {
+    if (points.length === 0) return;
+    if (points.length === 1) {
+      ctx.beginPath();
+      ctx.arc(points[0].x, points[0].y, ctx.lineWidth / 2, 0, Math.PI * 2);
+      ctx.fill();
       return;
     }
-    if (!drawing || !currentStroke) return;
-    const p = pos(e, canvas);
-    const pts = currentStroke.points;
-    const prev = pts[pts.length - 1];
-    pts.push(p);
-    ctx.strokeStyle = currentStroke.color;
-    ctx.lineWidth = currentStroke.size;
+    if (points.length === 2) {
+      ctx.beginPath();
+      ctx.moveTo(points[0].x, points[0].y);
+      ctx.lineTo(points[1].x, points[1].y);
+      ctx.stroke();
+      return;
+    }
     ctx.beginPath();
-    ctx.moveTo(prev.x, prev.y);
-    ctx.lineTo(p.x, p.y);
+    ctx.moveTo(points[0].x, points[0].y);
+    for (let i = 1; i < points.length - 1; i++) {
+      const midX = (points[i].x + points[i + 1].x) / 2;
+      const midY = (points[i].y + points[i + 1].y) / 2;
+      ctx.quadraticCurveTo(points[i].x, points[i].y, midX, midY);
+    }
+    const last = points[points.length - 1];
+    const prev = points[points.length - 2];
+    ctx.quadraticCurveTo(prev.x, prev.y, last.x, last.y);
     ctx.stroke();
-  });
-
-  canvas.addEventListener('pointerup', () => { drawing = false; currentStroke = null; });
-  canvas.addEventListener('pointercancel', () => { drawing = false; currentStroke = null; });
-
-  function markInk() {
-    if (!hasInk) {
-      hasInk = true;
-      padWrap.classList.add('hasInk');
-      btnCapture.disabled = false;
-    }
-    updateUndoState();
   }
 
-  function updateUndoState() {
-    btnUndo.disabled = strokes.length === 0;
+  // 根据平滑档位处理点集
+  function processPoints(points) {
+    if (smoothLevel === 0) return points;
+    let win = 3;
+    if (smoothLevel === 2) win = 5;
+    if (smoothLevel === 3) win = 7;
+    let result = movingAverage(points, win);
+    if (smoothLevel === 3) {
+      result = movingAverage(result, 5);
+    }
+    return result;
   }
 
-  setupCanvas();
-  window.addEventListener('resize', () => {
-    if (!padFullscreen.classList.contains('open')) setupCanvas();
+  // 绘制单个笔画
+  function drawStroke(ctx, stroke) {
+    if (stroke.points.length === 0) return;
+    ctx.strokeStyle = stroke.color;
+    ctx.fillStyle = stroke.color;
+    ctx.lineWidth = stroke.size || 3;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (smoothLevel > 0 && stroke.points.length >= 3) {
+      const processed = processPoints(stroke.points);
+      drawSmoothStroke(ctx, processed);
+    } else {
+      const pts = stroke.points;
+      if (pts.length === 1) {
+        ctx.beginPath();
+        ctx.arc(pts[0].x, pts[0].y, (stroke.size || 3) / 2, 0, Math.PI * 2);
+        ctx.fill();
+      } else {
+        ctx.beginPath();
+        ctx.moveTo(pts[0].x, pts[0].y);
+        for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+        ctx.stroke();
+      }
+    }
+  }
+
+  // ===== 全屏画布初始化 =====
+  function setupPadFsCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    padFsCanvas.style.width = FS_CANVAS_W + 'px';
+    padFsCanvas.style.height = FS_CANVAS_H + 'px';
+    padFsCanvas.width = FS_CANVAS_W * dpr;
+    padFsCanvas.height = FS_CANVAS_H * dpr;
+    redrawPadFs();
+  }
+
+  function redrawPadFs() {
+    const dpr = window.devicePixelRatio || 1;
+    fsCtx.setTransform(1, 0, 0, 1, 0, 0);
+    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
+    fsCtx.scale(dpr, dpr);
+    fsCtx.lineCap = 'round';
+    fsCtx.lineJoin = 'round';
+    for (const s of fsStrokes) {
+      drawStroke(fsCtx, s);
+    }
+    padFsUndo.disabled = fsStrokes.length === 0;
+    if (fsStrokes.length === 0) {
+      padFullscreen.classList.remove('hasInk');
+      padFsHint.style.opacity = '1';
+    } else {
+      padFullscreen.classList.add('hasInk');
+      padFsHint.style.opacity = '0';
+    }
+  }
+
+  // 打开全屏手写
+  btnPadFullscreen.addEventListener('click', () => {
+    padFullscreen.classList.add('open');
+    requestAnimationFrame(() => {
+      setupPadFsCanvas();
+      fsCurrentStroke = null;
+      fsEraserOn = false;
+      padFsEraser.classList.remove('active');
+      padFsEraser.classList.remove('danger');
+      padFsCanvas.style.cursor = 'crosshair';
+      redrawPadFs();
+      padFsScroll.scrollTop = 0;
+      padFsScroll.scrollLeft = 0;
+      fsPenSize.value = currentSize;
+      fsPenSizeVal.textContent = currentSize;
+      fsInkColor.value = currentColor;
+      fsColorPreview.style.color = currentColor;
+      fsSwatches.forEach(s => {
+        s.classList.toggle('active', s.dataset.color.toLowerCase() === currentColor.toLowerCase());
+      });
+    });
   });
 
-  btnUndo.addEventListener('click', () => {
-    if (strokes.length === 0) return;
-    strokes.pop();
-    redrawAll();
-    if (strokes.length === 0) {
-      hasInk = false;
-      padWrap.classList.remove('hasInk');
-      btnCapture.disabled = true;
+  // 平滑模式下的节流重绘
+  let smoothRedrawPending = false;
+  function scheduleSmoothRedraw() {
+    if (smoothRedrawPending) return;
+    smoothRedrawPending = true;
+    requestAnimationFrame(() => {
+      smoothRedrawPending = false;
+      redrawPadFs();
+    });
+  }
+
+  // 全屏手写事件
+  padFsCanvas.addEventListener('pointerdown', e => {
+    const p = pos(e, padFsCanvas);
+    if (fsEraserOn) {
+      const idx = hitStroke(fsStrokes, p, currentSize);
+      if (idx >= 0) {
+        fsStrokes.splice(idx, 1);
+        redrawPadFs();
+      }
+      return;
+    }
+    fsDrawing = true;
+    padFsCanvas.setPointerCapture(e.pointerId);
+    fsCurrentStroke = { points: [p], color: currentColor, size: currentSize };
+    fsStrokes.push(fsCurrentStroke);
+    // 立即绘制点
+    fsCtx.strokeStyle = currentColor;
+    fsCtx.fillStyle = currentColor;
+    fsCtx.lineWidth = currentSize;
+    fsCtx.beginPath();
+    fsCtx.arc(p.x, p.y, currentSize / 2, 0, Math.PI * 2);
+    fsCtx.fill();
+    padFullscreen.classList.add('hasInk');
+    padFsHint.style.opacity = '0';
+    padFsUndo.disabled = false;
+  });
+
+  padFsCanvas.addEventListener('pointermove', e => {
+    if (fsEraserOn) {
+      if (e.buttons === 0) return;
+      const p = pos(e, padFsCanvas);
+      const idx = hitStroke(fsStrokes, p, currentSize);
+      if (idx >= 0) {
+        fsStrokes.splice(idx, 1);
+        redrawPadFs();
+      }
+      return;
+    }
+    if (!fsDrawing || !fsCurrentStroke) return;
+    const p = pos(e, padFsCanvas);
+    const pts = fsCurrentStroke.points;
+    const prev = pts[pts.length - 1];
+    // 距离过滤
+    if (Math.hypot(p.x - prev.x, p.y - prev.y) < 1.5) return;
+    pts.push(p);
+    if (smoothLevel > 0) {
+      scheduleSmoothRedraw();
+    } else {
+      fsCtx.strokeStyle = fsCurrentStroke.color;
+      fsCtx.lineWidth = fsCurrentStroke.size;
+      fsCtx.beginPath();
+      fsCtx.moveTo(prev.x, prev.y);
+      fsCtx.lineTo(p.x, p.y);
+      fsCtx.stroke();
     }
   });
 
-  btnEraser.addEventListener('click', () => {
-    eraserOn = !eraserOn;
-    btnEraser.classList.toggle('active', eraserOn);
-    btnEraser.classList.toggle('danger', eraserOn);
-    canvas.style.cursor = eraserOn ? 'cell' : 'crosshair';
+  padFsCanvas.addEventListener('pointerup', () => {
+    fsDrawing = false;
+    if (fsCurrentStroke) {
+      if (smoothLevel > 0 && fsCurrentStroke.points.length > 1) {
+        redrawPadFs();
+      }
+      fsCurrentStroke = null;
+    }
+    if (fsStrokes.length > 0) {
+      padFullscreen.classList.add('hasInk');
+      padFsHint.style.opacity = '0';
+    } else {
+      padFullscreen.classList.remove('hasInk');
+      padFsHint.style.opacity = '1';
+    }
+    padFsUndo.disabled = fsStrokes.length === 0;
+  });
+  padFsCanvas.addEventListener('pointercancel', () => {
+    fsDrawing = false;
+    fsCurrentStroke = null;
   });
 
+  // 全屏清空
+  padFsClear.addEventListener('click', () => {
+    fsStrokes = [];
+    fsCurrentStroke = null;
+    redrawPadFs();
+  });
+
+  padFsUndo.addEventListener('click', () => {
+    if (fsStrokes.length === 0) return;
+    fsStrokes.pop();
+    redrawPadFs();
+  });
+
+  padFsEraser.addEventListener('click', () => {
+    fsEraserOn = !fsEraserOn;
+    padFsEraser.classList.toggle('active', fsEraserOn);
+    padFsEraser.classList.toggle('danger', fsEraserOn);
+    padFsCanvas.style.cursor = fsEraserOn ? 'cell' : 'crosshair';
+  });
+
+  // 平滑档位切换
+  smoothGroup.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      smoothLevel = parseInt(btn.dataset.smooth, 10);
+      smoothGroup.querySelectorAll('button').forEach(b => b.classList.toggle('active', b === btn));
+      redrawPadFs();
+    });
+  });
+
+  fsSwatches.forEach(s => {
+    s.addEventListener('click', () => setInkColor(s.dataset.color));
+  });
+  fsInkColor.addEventListener('input', () => setInkColor(fsInkColor.value));
+
+  fsPenSize.addEventListener('input', () => setSize(parseInt(fsPenSize.value, 10)));
+
+  // 完成
+  padFsDone.addEventListener('click', () => {
+    if (fsStrokes.length === 0) {
+      btnStatic.disabled = true;
+      btnScroll.disabled = true;
+      btnCopy.disabled = true;
+      btnDelete.disabled = true;
+      btnFullscreen.disabled = true;
+      capturedBlob = null;
+      display.innerHTML = '<span id="emptyTip">生成的笔迹会显示在这里</span>';
+      display.className = '';
+      speedRow.style.display = 'none';
+      btnStatic.classList.add('active');
+      btnScroll.classList.remove('active');
+    } else {
+      markInk();
+      generatePreviewFromStrokes();
+    }
+    closePadFullscreen();
+  });
+
+  padFsCancel.addEventListener('click', closePadFullscreen);
+
+  function closePadFullscreen() {
+    padFullscreen.classList.remove('open');
+    fsCurrentStroke = null;
+    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
+  }
+
+  // ===== 颜色/粗细 =====
   function setInkColor(color) {
     currentColor = color;
     inkColorInput.value = color;
@@ -618,74 +824,37 @@
   });
   inkColorInput.addEventListener('input', () => setInkColor(inkColorInput.value));
 
-  // 粗细统一：一个滑块同时控制画笔和橡皮
   function setSize(size) {
     currentSize = size;
-    penSizeInput.value = size;
-    penSizeVal.textContent = size;
     fsPenSize.value = size;
     fsPenSizeVal.textContent = size;
   }
 
-  penSizeInput.addEventListener('input', () => setSize(parseInt(penSizeInput.value, 10)));
-
-  // ===== 全屏手写 =====
-  const padFullscreen = document.getElementById('padFullscreen');
-  const padFsScroll = document.getElementById('padFsScroll');
-  const padFsCanvas = document.getElementById('padFsCanvas');
-  const fsCtx = padFsCanvas.getContext('2d');
-  const padFsClear = document.getElementById('padFsClear');
-  const padFsDone = document.getElementById('padFsDone');
-  const padFsCancel = document.getElementById('padFsCancel');
-  const padFsUndo = document.getElementById('padFsUndo');
-  const padFsEraser = document.getElementById('padFsEraser');
-  const fsInkColor = document.getElementById('fsInkColor');
-  const fsSwatches = document.querySelectorAll('#fsSwatches .swatch');
-  const fsColorPreview = document.getElementById('fsColorPreview');
-  const fsPenSize = document.getElementById('fsPenSize');
-  const fsPenSizeVal = document.getElementById('fsPenSizeVal');
-
-  const FS_CANVAS_W = 2000;
-  const FS_CANVAS_H = 1500;
-
-  let fsDrawing = false;
-  let fsCurrentStroke = null;
-  let fsStrokes = [];
-  let fsEraserOn = false;
-
-  function setupPadFsCanvas() {
-    const dpr = window.devicePixelRatio || 1;
-    padFsCanvas.style.width = FS_CANVAS_W + 'px';
-    padFsCanvas.style.height = FS_CANVAS_H + 'px';
-    padFsCanvas.width = FS_CANVAS_W * dpr;
-    padFsCanvas.height = FS_CANVAS_H * dpr;
-    redrawPadFs();
-  }
-
-  function redrawPadFs() {
-    const dpr = window.devicePixelRatio || 1;
-    fsCtx.setTransform(1, 0, 0, 1, 0, 0);
-    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
-    fsCtx.scale(dpr, dpr);
-    fsCtx.lineCap = 'round';
-    fsCtx.lineJoin = 'round';
+  // ===== 生成预览 =====
+  function generatePreviewFromStrokes() {
+    const bounds = getStrokesBounds(fsStrokes);
+    if (!bounds) return;
+    const pad = 30;
+    const srcW = bounds.w + pad * 2;
+    const srcH = bounds.h + pad * 2;
+    const tmpCanvas = document.createElement('canvas');
+    tmpCanvas.width = srcW * 2;
+    tmpCanvas.height = srcH * 2;
+    const tmpCtx = tmpCanvas.getContext('2d');
+    tmpCtx.scale(2, 2);
+    tmpCtx.lineCap = 'round';
+    tmpCtx.lineJoin = 'round';
+    tmpCtx.translate(-bounds.minX + pad, -bounds.minY + pad);
     for (const s of fsStrokes) {
-      const pts = s.points;
-      fsCtx.strokeStyle = s.color;
-      fsCtx.fillStyle = s.color;
-      fsCtx.lineWidth = s.size || 3;
-      if (pts.length === 1) {
-        fsCtx.beginPath();
-        fsCtx.arc(pts[0].x, pts[0].y, (s.size || 3) / 2, 0, Math.PI * 2);
-        fsCtx.fill();
-      } else {
-        fsCtx.beginPath();
-        fsCtx.moveTo(pts[0].x, pts[0].y);
-        for (let i = 1; i < pts.length; i++) fsCtx.lineTo(pts[i].x, pts[i].y);
-        fsCtx.stroke();
-      }
+      drawStroke(tmpCtx, s);
     }
-    padFsUndo.disabled = fsStrokes.length === 0;
+    tmpCanvas.toBlob(blob => {
+      capturedBlob = blob;
+      render();
+      [btnStatic, btnScroll, btnCopy, btnDelete, btnFullscreen].forEach(b => b.disabled = false);
+      speedRow.style.display = mode === 'scroll' ? 'flex' : 'none';
+      display.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 'image/png');
   }
 
   function getStrokesBounds(strokesArr) {
@@ -700,217 +869,6 @@
     }
     if (minX === Infinity) return null;
     return { minX, minY, maxX, maxY, w: maxX - minX, h: maxY - minY };
-  }
-
-  // 小画布 -> 全屏：等比放大居中
-  function mapSmallToFs(smallStrokes, smallRect, fsW, fsH) {
-    const bounds = getStrokesBounds(smallStrokes);
-    if (!bounds) return [];
-    const pad = 20;
-    const srcW = bounds.w + pad * 2;
-    const srcH = bounds.h + pad * 2;
-    const scale = Math.min(fsW / srcW, fsH / srcH, 3);
-    const mappedW = srcW * scale;
-    const mappedH = srcH * scale;
-    const offsetX = (fsW - mappedW) / 2 + pad * scale;
-    const offsetY = (fsH - mappedH) / 2 + pad * scale;
-
-    return smallStrokes.map(s => ({
-      color: s.color,
-      size: (s.size || 3) * scale,
-      points: s.points.map(p => ({
-        x: (p.x - bounds.minX) * scale + offsetX,
-        y: (p.y - bounds.minY) * scale + offsetY
-      }))
-    }));
-  }
-
-  // 全屏 -> 小画布：只映射有笔迹的区域，等比缩放居中
-  function mapFsToSmall(fsStrokesArr, smallRect) {
-    const bounds = getStrokesBounds(fsStrokesArr);
-    if (!bounds) return [];
-    const pad = 20;
-    const srcW = bounds.w + pad * 2;
-    const srcH = bounds.h + pad * 2;
-    const scale = Math.min(smallRect.width / srcW, smallRect.height / srcH);
-    const mappedW = srcW * scale;
-    const mappedH = srcH * scale;
-    const offsetX = (smallRect.width - mappedW) / 2 + pad * scale;
-    const offsetY = (smallRect.height - mappedH) / 2 + pad * scale;
-
-    return fsStrokesArr.map(s => ({
-      color: s.color,
-      size: (s.size || 3) * scale,
-      points: s.points.map(p => ({
-        x: (p.x - bounds.minX) * scale + offsetX,
-        y: (p.y - bounds.minY) * scale + offsetY
-      }))
-    }));
-  }
-
-  btnPadFullscreen.addEventListener('click', () => {
-    padFullscreen.classList.add('open');
-    requestAnimationFrame(() => {
-      setupPadFsCanvas();
-      // 同步小画布已有笔画到全屏
-      if (strokes.length > 0) {
-        const smallRect = canvas.getBoundingClientRect();
-        fsStrokes = mapSmallToFs(strokes, smallRect, FS_CANVAS_W, FS_CANVAS_H);
-      } else {
-        fsStrokes = [];
-      }
-      fsCurrentStroke = null;
-      fsEraserOn = false;
-      padFsEraser.classList.remove('active');
-      padFsEraser.classList.remove('danger');
-      padFsCanvas.style.cursor = 'crosshair';
-      redrawPadFs();
-      padFsScroll.scrollTop = 0;
-      padFsScroll.scrollLeft = 0;
-      // 同步工具栏
-      fsPenSize.value = currentSize;
-      fsPenSizeVal.textContent = currentSize;
-      fsInkColor.value = currentColor;
-      fsColorPreview.style.color = currentColor;
-      fsSwatches.forEach(s => {
-        s.classList.toggle('active', s.dataset.color.toLowerCase() === currentColor.toLowerCase());
-      });
-    });
-  });
-
-  padFsCanvas.addEventListener('pointerdown', e => {
-    const p = pos(e, padFsCanvas);
-    if (fsEraserOn) {
-      const idx = hitStroke(fsStrokes, p, currentSize);
-      if (idx >= 0) {
-        fsStrokes.splice(idx, 1);
-        redrawPadFs();
-      }
-      return;
-    }
-    fsDrawing = true;
-    padFsCanvas.setPointerCapture(e.pointerId);
-    fsCurrentStroke = { points: [p], color: currentColor, size: currentSize };
-    fsStrokes.push(fsCurrentStroke);
-  });
-
-  padFsCanvas.addEventListener('pointermove', e => {
-    if (fsEraserOn) {
-      if (e.buttons === 0) return;
-      const p = pos(e, padFsCanvas);
-      const idx = hitStroke(fsStrokes, p, currentSize);
-      if (idx >= 0) {
-        fsStrokes.splice(idx, 1);
-        redrawPadFs();
-      }
-      return;
-    }
-    if (!fsDrawing || !fsCurrentStroke) return;
-    const p = pos(e, padFsCanvas);
-    const pts = fsCurrentStroke.points;
-    const prev = pts[pts.length - 1];
-    pts.push(p);
-    fsCtx.strokeStyle = fsCurrentStroke.color;
-    fsCtx.lineWidth = fsCurrentStroke.size;
-    fsCtx.beginPath();
-    fsCtx.moveTo(prev.x, prev.y);
-    fsCtx.lineTo(p.x, p.y);
-    fsCtx.stroke();
-  });
-
-  padFsCanvas.addEventListener('pointerup', () => { fsDrawing = false; fsCurrentStroke = null; });
-  padFsCanvas.addEventListener('pointercancel', () => { fsDrawing = false; fsCurrentStroke = null; });
-
-  // 全屏清空：清空 fsStrokes，并同步清空小画布
-  padFsClear.addEventListener('click', () => {
-    fsStrokes = [];
-    fsCurrentStroke = null;
-    redrawPadFs();
-    // 同步清空小画布
-    strokes = [];
-    redrawAll();
-    hasInk = false;
-    padWrap.classList.remove('hasInk');
-    btnCapture.disabled = true;
-  });
-
-  padFsUndo.addEventListener('click', () => {
-    if (fsStrokes.length === 0) return;
-    fsStrokes.pop();
-    redrawPadFs();
-  });
-
-  padFsEraser.addEventListener('click', () => {
-    fsEraserOn = !fsEraserOn;
-    padFsEraser.classList.toggle('active', fsEraserOn);
-    padFsEraser.classList.toggle('danger', fsEraserOn);
-    padFsCanvas.style.cursor = fsEraserOn ? 'cell' : 'crosshair';
-  });
-
-  fsSwatches.forEach(s => {
-    s.addEventListener('click', () => setInkColor(s.dataset.color));
-  });
-  fsInkColor.addEventListener('input', () => setInkColor(fsInkColor.value));
-
-  fsPenSize.addEventListener('input', () => setSize(parseInt(fsPenSize.value, 10)));
-
-  // 完成：用全屏的全部笔画覆盖小画布，保证清空/橡皮/新增都同步
-  padFsDone.addEventListener('click', () => {
-    const smallRect = canvas.getBoundingClientRect();
-    if (fsStrokes.length === 0) {
-      strokes = [];
-    } else {
-      strokes = mapFsToSmall(fsStrokes, smallRect);
-    }
-    redrawAll();
-    if (strokes.length === 0) {
-      hasInk = false;
-      padWrap.classList.remove('hasInk');
-      btnCapture.disabled = true;
-    } else {
-      markInk();
-    }
-    closePadFullscreen();
-  });
-
-  padFsCancel.addEventListener('click', closePadFullscreen);
-
-  function closePadFullscreen() {
-    padFullscreen.classList.remove('open');
-    fsStrokes = [];
-    fsCurrentStroke = null;
-    fsCtx.clearRect(0, 0, padFsCanvas.width, padFsCanvas.height);
-  }
-
-  // ===== 生成 / 展示 =====
-  function captureInk() {
-    const w = canvas.width, h = canvas.height;
-    const imgData = ctx.getImageData(0, 0, w, h).data;
-    let minX = w, minY = h, maxX = 0, maxY = 0, found = false;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        const a = imgData[(y * w + x) * 4 + 3];
-        if (a > 10) {
-          found = true;
-          if (x < minX) minX = x;
-          if (x > maxX) maxX = x;
-          if (y < minY) minY = y;
-          if (y > maxY) maxY = y;
-        }
-      }
-    }
-    if (!found) return null;
-    const pad = 8;
-    minX = Math.max(0, minX - pad);
-    minY = Math.max(0, minY - pad);
-    maxX = Math.min(w - 1, maxX + pad);
-    maxY = Math.min(h - 1, maxY + pad);
-    const cw = maxX - minX + 1, ch = maxY - minY + 1;
-
-    const tmp = document.createElement('canvas');
-    tmp.width = cw; tmp.height = ch;
-    tmp.getContext('2d').drawImage(canvas, minX, minY, cw, ch, 0, 0, cw, ch);
-    return tmp;
   }
 
   function render() {
@@ -938,27 +896,6 @@
     }
     display.classList.add('hasContent');
   }
-
-  btnCapture.addEventListener('click', () => {
-    const tmp = captureInk();
-    if (!tmp) return;
-    tmp.toBlob(blob => {
-      capturedBlob = blob;
-      render();
-      [btnStatic, btnScroll, btnCopy, btnDelete, btnFullscreen].forEach(b => b.disabled = false);
-      speedRow.style.display = mode === 'scroll' ? 'flex' : 'none';
-      display.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 'image/png');
-  });
-
-  btnClear.addEventListener('click', () => {
-    strokes = [];
-    currentStroke = null;
-    redrawAll();
-    hasInk = false;
-    padWrap.classList.remove('hasInk');
-    btnCapture.disabled = true;
-  });
 
   function setDisplayMode(next) {
     mode = next;
@@ -1153,6 +1090,29 @@
       else if (fullscreenLayer.classList.contains('open')) closeFullscreen();
     }
   });
+
+  // ===== 初始状态 =====
+  function markInk() {
+    btnStatic.disabled = false;
+    btnScroll.disabled = false;
+    btnCopy.disabled = false;
+    btnDelete.disabled = false;
+    btnFullscreen.disabled = false;
+    btnStatic.classList.add('active');
+    btnScroll.classList.remove('active');
+  }
+
+  btnStatic.disabled = true;
+  btnScroll.disabled = true;
+  btnCopy.disabled = true;
+  btnDelete.disabled = true;
+  btnFullscreen.disabled = true;
+
+  // 初始化
+  setInkColor('#e8e8f0');
+  setSize(3);
+  smoothGroup.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.smooth === '0'));
+
 </script>
 </body>
 </html>
