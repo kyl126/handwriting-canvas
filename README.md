@@ -25,4 +25,4 @@
 
 ### 在线使用
 
-直接访问 GitHub Pages 地址（如果已开启）：
+直接访问 GitHub Pages 地址：https://kyl126.github.io/handwriting-canvas/
