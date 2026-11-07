@@ -39,7 +39,7 @@
     display:flex; align-items:center; justify-content:center;
     overflow:hidden; position:relative; cursor:pointer;
   }
-  #display img { display:block; width:100%; height:auto; max-height:220px; object-fit:contain; }
+  #display img { display:block; width:100%; height:auto; max-height:260px; object-fit:contain; }
   #emptyTip { color:var(--muted); font-size:14px; }
   #display.hasContent #emptyTip { display:none; }
 
@@ -98,37 +98,105 @@
   input[type=color] { width:40px; height:32px; border:1px solid var(--btn-border); border-radius:8px; background:var(--btn-bg); padding:2px; }
   .sizeRow { display:flex; align-items:center; gap:8px; font-size:13px; color:var(--muted); }
 
+  /* ===== 全屏手写层 ===== */
   #padFullscreen {
     position:fixed; top:0; left:0; right:0; bottom:0; width:100%; height:100%;
     background:var(--canvas-bg); z-index:9999; display:none; overflow:hidden;
     touch-action:none; overscroll-behavior:none;
   }
-  #padFullscreen.open { display:flex; flex-direction:column; }
+  #padFullscreen.open { display:block; }
 
-  #padCanvasWrap { flex:1 1 auto; min-height:0; position:relative; background:var(--canvas-bg); overflow:hidden; touch-action:none; }
-  #padCanvas { position:absolute; top:0; left:0; display:block; touch-action:none; cursor:crosshair; background:transparent; }
-  #padHint {
+  /* ===== 手机布局（竖屏铺满） ===== */
+  #padMobile {
+    position:absolute; inset:0;
+    width:100%; height:100%;
+    background:var(--canvas-bg);
+  }
+  #padCanvasWrapMobile {
+    position:absolute; inset:0;
+    background:var(--canvas-bg);
+    overflow:hidden;
+    touch-action:none;
+  }
+  #padCanvasMobile {
+    position:absolute; top:0; left:0;
+    display:block;
+    touch-action:none;
+    cursor:crosshair;
+    background:transparent;
+  }
+
+  /* 手写提示 */
+  .pad-hint {
     position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
     color:var(--muted2); font-size:16px; pointer-events:none; white-space:nowrap; text-align:center;
   }
-  #padFullscreen.hasInk #padHint { display:none; }
+  #padFullscreen.hasInk .pad-hint { display:none; }
 
-  #padSide { flex:0 0 auto; background:var(--panel2); border-top:1px solid var(--border); padding-bottom: env(safe-area-inset-bottom); display:flex; flex-direction:column; }
-  #padBottom { display:flex; flex-direction:column; flex:0 0 auto; }
-  #padActions { display:flex; gap:8px; padding:10px 12px; justify-content:center; align-items:center; }
-  #padActions button {
-    flex:1; max-width:140px; padding:12px 0; font-size:15px;
-    border-radius:999px; border:1px solid var(--btn-border); background:var(--btn-bg); color:var(--text); cursor:pointer;
+  /* ===== 手机底部悬浮操作栏 ===== */
+  #padBottomMobile {
+    position:absolute;
+    left:50%;
+    bottom:calc(12px + env(safe-area-inset-bottom));
+    transform:translateX(-50%);
+    display:flex;
+    gap:8px;
+    z-index:30;
+    padding:6px;
+    background:rgba(30,30,40,.85);
+    border:1px solid rgba(255,255,255,.08);
+    border-radius:999px;
+    backdrop-filter:blur(10px);
+    align-items:center;
+    justify-content:center;
   }
-  #padActions button.primary { background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600; }
-  #padActions button.active { background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600; }
+  body.theme-light #padBottomMobile {
+    background:rgba(255,255,255,.9);
+    border-color:#d0d0da;
+  }
+  #padBottomMobile button {
+    padding:9px 14px;
+    font-size:13px;
+    border-radius:999px;
+    border:1px solid transparent;
+    background:transparent;
+    color:var(--text);
+    cursor:pointer;
+    white-space:nowrap;
+    touch-action:manipulation;
+  }
+  #padBottomMobile button:hover { background:rgba(255,255,255,.08); }
+  body.theme-light #padBottomMobile button:hover { background:rgba(0,0,0,.06); }
+  #padBottomMobile button.primary {
+    background:var(--accent);
+    color:var(--accent-text);
+    border-color:var(--accent);
+    font-weight:600;
+  }
+  #padBottomMobile button.active {
+    background:var(--accent);
+    color:var(--accent-text);
+    border-color:var(--accent);
+    font-weight:600;
+  }
 
-  #padTools {
-    display:none; padding:8px 10px;
-    border-top:1px solid var(--border);
-    max-height:50vh; overflow-y:auto; -webkit-overflow-scrolling:touch;
+  /* ===== 手机端浮动工具面板 ===== */
+  #padToolsMobile {
+    display:none;
+    position:absolute;
+    left:12px; right:12px;
+    bottom:calc(70px + env(safe-area-inset-bottom));
+    max-height:48vh;
+    overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    background:var(--panel2);
+    border:1px solid var(--border);
+    border-radius:14px;
+    padding:8px 10px;
+    z-index:25;
+    box-shadow:0 -10px 30px rgba(0,0,0,.35);
   }
-  #padTools.open { display:block; }
+  #padToolsMobile.open { display:block; }
 
   .group { border:1px solid var(--btn-border); border-radius:12px; margin:8px 0; background:var(--btn-bg); overflow:hidden; }
   .group > .groupHead { display:flex; align-items:center; justify-content:space-between; padding:10px 12px; cursor:pointer; font-size:14px; font-weight:600; color:var(--text); user-select:none; }
@@ -145,73 +213,55 @@
   .sliderRow input[type=range] { flex:1; accent-color:var(--accent); }
   .sliderRow .val { min-width:44px; text-align:right; font-size:12px; color:var(--muted2); }
 
-  #padMobile { display:flex; flex-direction:column; flex:1; min-height:0; width:100%; }
+  /* ===== 电脑布局 ===== */
   #padDesktop { display:none; }
+  #padDesktop #padCanvasWrapDesktop {
+    flex:1 1 auto; min-width:0; min-height:0;
+    position:relative; background:var(--canvas-bg);
+    overflow:hidden; touch-action:none; order:1;
+  }
+  #padDesktop #padCanvasDesktop {
+    position:absolute; top:0; left:0; display:block;
+    touch-action:none; cursor:crosshair; background:transparent;
+  }
+  #padToolsDesktop {
+    display:none;
+    flex:1 1 auto; min-height:0;
+    max-height:none; overflow-y:auto;
+    -webkit-overflow-scrolling:touch;
+    padding:8px 10px;
+    border-top:1px solid var(--border);
+    background:var(--panel2);
+  }
 
-  /* ===== 电脑端布局：左画布自适应 + 右侧固定工具栏 ===== */
   @media (min-width:760px) and (orientation:landscape) {
     #padMobile { display:none; }
     #padDesktop {
-      display:flex;
-      flex-direction:row;
-      flex:1 1 auto;
-      min-height:0;
-      min-width:0;
-      width:100%;
-      height:100%;
-    }
-    #padDesktop #padCanvasWrapDesktop {
-      flex:1 1 auto;
-      min-width:0;
-      min-height:0;
-      position:relative;
-      background:var(--canvas-bg);
-      overflow:hidden;
-      touch-action:none;
-      order:1;
-    }
-    #padDesktop #padCanvasDesktop {
-      position:absolute;
-      top:0; left:0;
-      display:block;
-      touch-action:none;
-      cursor:crosshair;
-      background:transparent;
+      position:absolute; inset:0;
+      display:flex; flex-direction:row;
+      width:100%; height:100%;
+      min-height:0; min-width:0;
     }
     #padDesktop #padSideDesktop {
-      order:2;
-      width:300px;
-      flex:0 0 300px;
-      height:100%;
-      display:flex;
-      flex-direction:column;
-      background:var(--panel2);
-      border-left:1px solid var(--border);
-      min-height:0;
+      order:2; width:300px; flex:0 0 300px; height:100%;
+      display:flex; flex-direction:column;
+      background:var(--panel2); border-left:1px solid var(--border); min-height:0;
     }
     #padDesktop #padToolsDesktop {
-      display:block !important;
-      flex:1 1 auto;
-      min-height:0;
-      max-height:none;
-      overflow-y:auto;
-      border-top:none;
+      display:block !important; flex:1 1 auto; min-height:0;
+      max-height:none; overflow-y:auto; border-top:none;
       -webkit-overflow-scrolling:touch;
     }
     #padDesktop #padActionsDesktop {
-      flex:0 0 auto;
-      flex-direction:column;
-      padding:12px;
-      border-top:1px solid var(--border);
+      flex:0 0 auto; flex-direction:column;
+      padding:12px; border-top:1px solid var(--border);
+      display:flex; gap:8px;
     }
-    #padDesktop #padActionsDesktop button {
-      width:100%;
-      max-width:none;
-    }
-    /* 电脑端不需要"工具"开关按钮 */
-    #padDesktop [data-tool-toggle] { display:none; }
+    #padDesktop #padActionsDesktop button { width:100%; max-width:none; padding:12px 0; font-size:15px; border-radius:999px; border:1px solid var(--btn-border); background:var(--btn-bg); color:var(--text); cursor:pointer; }
+    #padDesktop #padActionsDesktop button.primary { background:var(--accent); color:var(--accent-text); border-color:var(--accent); font-weight:600; }
   }
 
+  /* ===== 全屏预览 ===== */
   #fullscreenLayer { position:fixed; inset:0; background:rgba(0,0,0,.96); z-index:1000; display:none; align-items:center; justify-content:center; overflow:hidden; touch-action:none; }
   body.theme-light #fullscreenLayer { background:rgba(243,243,247,.98); }
   #fullscreenLayer.open { display:flex; }
@@ -300,23 +350,21 @@
   </div>
 
   <div id="padFullscreen">
+    <!-- 手机布局：画布铺满 + 浮层 -->
     <div id="padMobile">
       <div id="padCanvasWrapMobile">
         <canvas id="padCanvasMobile"></canvas>
         <div class="pad-hint">单指写字 · 双指拖动画布</div>
       </div>
-      <div id="padSideMobile">
-        <div id="padBottomMobile">
-          <div id="padToolsMobile" class="pad-tools"></div>
-          <div id="padActionsMobile" class="pad-actions">
-            <button data-tool-toggle="mobile">工具</button>
-            <button class="primary" data-act="done-mobile">完成</button>
-            <button data-act="cancel-mobile">取消</button>
-          </div>
-        </div>
+      <div id="padToolsMobile" class="pad-tools"></div>
+      <div id="padBottomMobile">
+        <button data-tool-toggle="mobile">工具</button>
+        <button class="primary" data-act="done-mobile">完成</button>
+        <button data-act="cancel-mobile">取消</button>
       </div>
     </div>
 
+    <!-- 电脑布局 -->
     <div id="padDesktop">
       <div id="padCanvasWrapDesktop">
         <canvas id="padCanvasDesktop"></canvas>
@@ -324,13 +372,15 @@
       </div>
       <div id="padSideDesktop">
         <div id="padToolsDesktop" class="pad-tools"></div>
-        <div id="padActionsDesktop" class="pad-actions">
+        <div id="padActionsDesktop">
           <button class="primary" data-act="done-desktop">完成</button>
           <button data-act="cancel-desktop">取消</button>
         </div>
       </div>
     </div>
   </div>
+
+  <input type="file" id="importImageInput" accept="image/*" style="display:none;">
 
 <script>
   // ================= 全局状态 =================
@@ -348,6 +398,7 @@
   const speedVal = document.getElementById('speedVal');
   const inkColorInput = document.getElementById('inkColor');
   const swatches = document.querySelectorAll('#swatches .swatch');
+  const importImageInput = document.getElementById('importImageInput');
 
   let capturedBlob = null;
   let mode = 'static';
@@ -356,6 +407,8 @@
   let smoothLevel = 0;
   let theme = 'dark';
   let userPickedColor = false;
+
+  let exportFormat = 'smooth';
 
   // ================= 主题 =================
   function applyTheme(next) {
@@ -393,18 +446,17 @@
   const padCanvasWrapMobile = document.getElementById('padCanvasWrapMobile');
   const padCanvasMobile = document.getElementById('padCanvasMobile');
   const padToolsMobile = document.getElementById('padToolsMobile');
-  const padActionsMobile = document.getElementById('padActionsMobile');
+  const padBottomMobile = document.getElementById('padBottomMobile');
 
   const padCanvasWrapDesktop = document.getElementById('padCanvasWrapDesktop');
   const padCanvasDesktop = document.getElementById('padCanvasDesktop');
   const padToolsDesktop = document.getElementById('padToolsDesktop');
-  const padActionsDesktop = document.getElementById('padActionsDesktop');
 
   let activeCanvas = null, activeCtx = null, activeWrap = null;
 
   // ================= 世界网格 =================
-  const GRID_N = 96;
-  const GRID_CELL_PX = 24;
+  const GRID_N = 192;
+  const GRID_CELL_PX = 12;
   const WORLD_SIZE = GRID_N * GRID_CELL_PX;
 
   let padMode = 'smooth';
@@ -415,9 +467,8 @@
 
   let strokes = [];
   let pixelMap = new Map();
-  let pixelDirty = false;
 
-  let drawing = false, curStroke = null, eraserOn = false;
+  let drawing = false, curStroke = null, eraserOn = false, eyedropperOn = false;
   let panning = false, panLastX = 0, panLastY = 0;
   let pixelPainting = false;
   const padPointers = new Map();
@@ -510,17 +561,26 @@
   }
 
   function applyPadSize() {
-    const rect = activeWrap.getBoundingClientRect();
-    let w = Math.floor(rect.width);
-    let h = Math.floor(rect.height);
+    let w, h;
+    if (isDesktopLayout()) {
+      const rect = activeWrap.getBoundingClientRect();
+      w = Math.floor(rect.width);
+      h = Math.floor(rect.height);
+    } else {
+      const rect = padFullscreen.getBoundingClientRect();
+      w = Math.floor(rect.width);
+      h = Math.floor(rect.height);
+    }
     if (w <= 1 || h <= 1) {
       w = Math.max(1, window.innerWidth);
-      h = Math.max(1, window.innerHeight - 160);
+      h = Math.max(1, window.innerHeight);
     }
     cssW = w; cssH = h;
     const dpr = window.devicePixelRatio || 1;
     activeCanvas.style.width = cssW + 'px';
     activeCanvas.style.height = cssH + 'px';
+    activeCanvas.style.left = '0px';
+    activeCanvas.style.top = '0px';
     activeCanvas.width = Math.round(cssW * dpr);
     activeCanvas.height = Math.round(cssH * dpr);
     drawPad();
@@ -528,7 +588,7 @@
 
   function initPadView() {
     zoom = Math.min(cssW / WORLD_SIZE, cssH / WORLD_SIZE) * 0.95;
-    zoom = Math.max(0.2, Math.min(1, zoom));
+    zoom = Math.max(0.05, Math.min(1, zoom));
     viewX = (WORLD_SIZE - cssW / zoom) / 2;
     viewY = (WORLD_SIZE - cssH / zoom) / 2;
     clampView();
@@ -574,7 +634,7 @@
 
   function drawGrid(ctx) {
     const cellScreen = GRID_CELL_PX * zoom;
-    if (cellScreen < 3) return;
+    if (cellScreen < 1) return;
     const startGX = Math.max(0, Math.floor(viewX / GRID_CELL_PX));
     const endGX = Math.min(GRID_N, Math.ceil((viewX + cssW / zoom) / GRID_CELL_PX));
     const startGY = Math.max(0, Math.floor(viewY / GRID_CELL_PX));
@@ -605,27 +665,22 @@
     }
   }
 
-  // ================= 双向同步 =================
+  // ================= 数据操作 =================
   function worldToGrid(wx, wy) { return { gx: Math.floor(wx / GRID_CELL_PX), gy: Math.floor(wy / GRID_CELL_PX) }; }
   function inGrid(gx, gy) { return gx >= 0 && gy >= 0 && gx < GRID_N && gy < GRID_N; }
 
-  // strokes → pixelMap：按笔画经过的格子涂色
   function convertStrokesToPixels() {
     pixelMap.clear();
-    if (strokes.length === 0) { pixelDirty = false; return; }
-
+    if (strokes.length === 0) return;
     function markCell(gx, gy, color) {
       if (gx < 0 || gy < 0 || gx >= GRID_N || gy >= GRID_N) return;
       pixelMap.set(gx + ',' + gy, color);
     }
-
     for (const s of strokes) {
       const color = s.color;
       const pts = s.points;
       if (!pts.length) continue;
       const r = (s.size || 3) / 2;
-
-      // 覆盖一个点周围所有落在笔宽内的格子
       function coverAround(px, py) {
         const g0 = worldToGrid(px, py);
         markCell(g0.gx, g0.gy, color);
@@ -642,11 +697,9 @@
           }
         }
       }
-
       for (let i = 0; i < pts.length; i++) {
         const p = pts[i];
         coverAround(p.x, p.y);
-
         if (i > 0) {
           const a = pts[i - 1];
           const dx = p.x - a.x, dy = p.y - a.y;
@@ -659,24 +712,6 @@
         }
       }
     }
-    pixelDirty = false;
-  }
-
-  // pixelMap → strokes
-  function rebuildStrokesFromPixels() {
-    strokes = [];
-    for (const [key, color] of pixelMap) {
-      const [gx, gy] = key.split(',').map(Number);
-      const x = gx * GRID_CELL_PX + GRID_CELL_PX / 2;
-      const y = gy * GRID_CELL_PX + GRID_CELL_PX / 2;
-      strokes.push({
-        points: [{ x, y }],
-        color,
-        size: GRID_CELL_PX * 1.05,
-        smoothLevel: 0
-      });
-    }
-    pixelDirty = false;
   }
 
   function paintPixelAt(wx, wy, color) {
@@ -690,17 +725,12 @@
       if (pixelMap.get(key) === color) return;
       pixelMap.set(key, color);
     }
-    pixelDirty = true;
     drawPad();
   }
 
   function setPadMode(next) {
     if (next === padMode) return;
-    if (next === 'pixel') {
-      convertStrokesToPixels();
-    } else {
-      if (pixelDirty) rebuildStrokesFromPixels();
-    }
+    if (next === 'pixel') convertStrokesToPixels();
     padMode = next;
     syncModeButtons();
     drawPad();
@@ -712,16 +742,18 @@
     if (activeCanvas) activeCanvas.style.cursor = next === 'pan' ? 'grab' : 'crosshair';
   }
 
-  // ================= UI 同步 =================
-  function syncModeButtons() {
-    document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === padMode));
+  // ================= 导出格式 =================
+  function setExportFormat(fmt) {
+    exportFormat = fmt;
+    document.querySelectorAll('[data-export]').forEach(b => {
+      b.classList.toggle('active', b.dataset.export === fmt);
+    });
+    if (capturedBlob) regenerateBlobForCurrentFormat(renderPreview);
   }
-  function syncToolButtons() {
-    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
-  }
-  function updateZoomUI() {
-    document.querySelectorAll('[data-zoom-slider]').forEach(el => { el.value = Math.round(zoom * 100); });
-    document.querySelectorAll('[data-zoom-val]').forEach(el => { el.textContent = Math.round(zoom * 100) + '%'; });
+
+  function regenerateBlobForCurrentFormat(cb) {
+    if (exportFormat === 'smooth') generateSmoothBlob(cb);
+    else generatePixelBlob(cb);
   }
 
   // ================= 指针事件 =================
@@ -730,12 +762,51 @@
     return screenToWorld(e.clientX - rect.left, e.clientY - rect.top);
   }
 
+  function rgbToHex(color) {
+    if (!color) return '#000000';
+    if (color.startsWith('#')) return color;
+    const m = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (!m) return '#000000';
+    const r = parseInt(m[1], 10), g = parseInt(m[2], 10), b = parseInt(m[3], 10);
+    return '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+  }
+
   function onPadPointerDown(e) {
     e.preventDefault();
     padPointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
     try { activeCanvas.setPointerCapture(e.pointerId); } catch (err) {}
 
     if (padPointers.size === 1) {
+      if (eyedropperOn) {
+        const rect = activeCanvas.getBoundingClientRect();
+        const localX = Math.floor(e.clientX - rect.left);
+        const localY = Math.floor(e.clientY - rect.top);
+        const dpr = window.devicePixelRatio || 1;
+        let picked = null;
+
+        if (padMode === 'pixel') {
+          const w = getWorldPoint(e);
+          const { gx, gy } = worldToGrid(w.x, w.y);
+          const key = gx + ',' + gy;
+          if (pixelMap.has(key)) picked = pixelMap.get(key);
+          else picked = theme === 'light' ? '#ffffff' : '#0f0f14';
+        } else {
+          try {
+            const px = Math.floor(localX * dpr);
+            const py = Math.floor(localY * dpr);
+            const data = activeCtx.getImageData(px, py, 1, 1).data;
+            picked = `rgb(${data[0]},${data[1]},${data[2]})`;
+          } catch (err) { picked = null; }
+        }
+
+        if (picked) setInkColor(rgbToHex(picked));
+
+        eyedropperOn = false;
+        document.querySelectorAll('[data-act="eyedropper"]').forEach(x => x.classList.remove('active'));
+        if (activeCanvas) activeCanvas.style.cursor = tool === 'pan' ? 'grab' : 'crosshair';
+        return;
+      }
+
       if (tool === 'pan' || (e.pointerType === 'mouse' && e.button === 1)) {
         panning = true; panLastX = e.clientX; panLastY = e.clientY;
         activeCanvas.style.cursor = 'grabbing';
@@ -860,6 +931,9 @@
             <button data-mode="smooth">平滑手写</button>
             <button data-mode="pixel">像素模式</button>
           </div>
+          <div class="row">
+            <button data-act="import-image">导入图片转像素</button>
+          </div>
         </div>
       </div>
       <div class="group open">
@@ -878,6 +952,18 @@
           </div>
           <div class="row">
             <button data-act="zoom-reset">重置视图</button>
+          </div>
+        </div>
+      </div>
+      <div class="group open">
+        <div class="groupHead">导出格式 <span class="arrow">▶</span></div>
+        <div class="groupBody">
+          <div class="row">
+            <button data-export="smooth" class="active">平滑图片</button>
+            <button data-export="pixel">像素图片</button>
+          </div>
+          <div class="row" style="font-size:12px;color:var(--muted2);">
+            选择预览/保存时使用的图片格式
           </div>
         </div>
       </div>
@@ -919,11 +1005,38 @@
           <div class="row">
             <button data-act="undo">撤销</button>
             <button data-act="eraser">橡皮</button>
+            <button data-act="eyedropper">吸管</button>
             <button data-act="clear">清空</button>
           </div>
         </div>
       </div>
     `;
+  }
+
+  function syncModeButtons() {
+    document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('active', b.dataset.mode === padMode));
+  }
+  function syncToolButtons() {
+    document.querySelectorAll('[data-tool]').forEach(b => b.classList.toggle('active', b.dataset.tool === tool));
+  }
+  function updateZoomUI() {
+    document.querySelectorAll('[data-zoom-slider]').forEach(el => { el.value = Math.round(zoom * 100); });
+    document.querySelectorAll('[data-zoom-val]').forEach(el => { el.textContent = Math.round(zoom * 100) + '%'; });
+  }
+  function refreshSwatchActive() {
+    document.querySelectorAll('.swatch[data-color]').forEach(s => {
+      s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === currentColor.toLowerCase());
+    });
+    document.querySelectorAll('[data-color-picker]').forEach(inp => { inp.value = currentColor; });
+  }
+  function refreshSizeUI() {
+    document.querySelectorAll('[data-size-slider]').forEach(sl => { sl.value = currentSize; });
+    document.querySelectorAll('[data-size-val]').forEach(v => { v.textContent = currentSize; });
+  }
+  function refreshSmoothUI() {
+    document.querySelectorAll('[data-smooth-group]').forEach(g => {
+      g.querySelectorAll('button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.smooth, 10) === smoothLevel));
+    });
   }
 
   function mountTools() {
@@ -952,6 +1065,12 @@
       container.querySelectorAll('[data-act="zoom-reset"]').forEach(b => {
         b.addEventListener('click', () => initPadView());
       });
+      container.querySelectorAll('[data-export]').forEach(b => {
+        b.addEventListener('click', () => setExportFormat(b.dataset.export));
+      });
+      container.querySelectorAll('[data-act="import-image"]').forEach(b => {
+        b.addEventListener('click', () => triggerImportImage());
+      });
       container.querySelectorAll('.swatch').forEach(s => {
         s.addEventListener('click', () => setInkColor(s.dataset.color));
       });
@@ -974,49 +1093,52 @@
             if (strokes.length) { strokes.pop(); drawPad(); }
           } else {
             const keys = [...pixelMap.keys()];
-            if (keys.length) { pixelMap.delete(keys[keys.length - 1]); pixelDirty = true; drawPad(); }
+            if (keys.length) { pixelMap.delete(keys[keys.length - 1]); drawPad(); }
           }
         });
       });
       container.querySelectorAll('[data-act="eraser"]').forEach(b => {
         b.addEventListener('click', () => {
           eraserOn = !eraserOn;
+          if (eraserOn) eyedropperOn = false;
           container.querySelectorAll('[data-act="eraser"]').forEach(x => {
             x.classList.toggle('active', eraserOn);
             x.classList.toggle('danger', eraserOn);
           });
-          if (activeCanvas) activeCanvas.style.cursor = eraserOn ? 'cell' : (tool === 'pan' ? 'grab' : 'crosshair');
+          container.querySelectorAll('[data-act="eyedropper"]').forEach(x => {
+            x.classList.toggle('active', eyedropperOn);
+          });
+          if (activeCanvas) activeCanvas.style.cursor = eraserOn ? 'cell' : (eyedropperOn ? 'crosshair' : (tool === 'pan' ? 'grab' : 'crosshair'));
+        });
+      });
+      container.querySelectorAll('[data-act="eyedropper"]').forEach(b => {
+        b.addEventListener('click', () => {
+          eyedropperOn = !eyedropperOn;
+          if (eyedropperOn) eraserOn = false;
+          container.querySelectorAll('[data-act="eyedropper"]').forEach(x => {
+            x.classList.toggle('active', eyedropperOn);
+          });
+          container.querySelectorAll('[data-act="eraser"]').forEach(x => {
+            x.classList.toggle('active', eraserOn);
+            x.classList.toggle('danger', eraserOn);
+          });
+          if (activeCanvas) activeCanvas.style.cursor = eyedropperOn ? 'crosshair' : (eraserOn ? 'cell' : (tool === 'pan' ? 'grab' : 'crosshair'));
         });
       });
       container.querySelectorAll('[data-act="clear"]').forEach(b => {
         b.addEventListener('click', () => {
-          strokes = []; pixelMap.clear(); pixelDirty = false;
+          strokes = []; pixelMap.clear();
           curStroke = null; drawing = false;
           drawPad();
         });
       });
     });
     syncModeButtons(); syncToolButtons(); updateZoomUI();
+    document.querySelectorAll('[data-export]').forEach(b => {
+      b.classList.toggle('active', b.dataset.export === exportFormat);
+    });
     refreshSwatchActive(); refreshSizeUI(); refreshSmoothUI();
   }
-
-  function refreshSwatchActive() {
-    document.querySelectorAll('.swatch[data-color]').forEach(s => {
-      s.classList.toggle('active', (s.dataset.color || '').toLowerCase() === currentColor.toLowerCase());
-    });
-    document.querySelectorAll('[data-color-picker]').forEach(inp => { inp.value = currentColor; });
-  }
-  function refreshSizeUI() {
-    document.querySelectorAll('[data-size-slider]').forEach(sl => { sl.value = currentSize; });
-    document.querySelectorAll('[data-size-val]').forEach(v => { v.textContent = currentSize; });
-  }
-  function refreshSmoothUI() {
-    document.querySelectorAll('[data-smooth-group]').forEach(g => {
-      g.querySelectorAll('button').forEach(b => b.classList.toggle('active', parseInt(b.dataset.smooth, 10) === smoothLevel));
-    });
-  }
-
-  mountTools();
 
   document.querySelectorAll('[data-tool-toggle]').forEach(b => {
     b.addEventListener('click', () => {
@@ -1040,9 +1162,10 @@
     function tryInit() {
       tries++;
       applyPadSize();
-      const rect = activeWrap.getBoundingClientRect();
+      const rect = (isDesktopLayout() ? activeWrap : padFullscreen).getBoundingClientRect();
       if ((rect.width <= 1 || rect.height <= 1) && tries < 20) { requestAnimationFrame(tryInit); return; }
-      drawing = false; curStroke = null; eraserOn = false; pixelPainting = false; panning = false;
+      drawing = false; curStroke = null; eraserOn = false; eyedropperOn = false;
+      pixelPainting = false; panning = false;
       padPointers.clear();
       setTool('draw');
       syncModeButtons(); syncToolButtons();
@@ -1056,6 +1179,7 @@
   function closePad() {
     padFullscreen.classList.remove('open');
     padToolsMobile.classList.remove('open');
+    document.querySelectorAll('[data-tool-toggle]').forEach(b => b.classList.remove('active'));
     drawing = false; curStroke = null; pixelPainting = false; panning = false;
     padPointers.clear();
     [padCanvasMobile, padCanvasDesktop].forEach(c => {
@@ -1074,13 +1198,9 @@
     b.addEventListener('click', closePad);
   });
 
-  // ================= 完成导出 =================
-  function finishPad() {
-    if (padMode === 'pixel' && pixelDirty) {
-      rebuildStrokesFromPixels();
-    }
-    if (strokes.length === 0) { resetDisplay(); closePad(); return; }
-
+  // ================= 导出 =================
+  function generateSmoothBlob(cb) {
+    if (strokes.length === 0) { cb(null); return; }
     const b = getBounds(strokes);
     const pad = 30;
     const srcW = b.w + pad * 2, srcH = b.h + pad * 2;
@@ -1094,14 +1214,48 @@
     tctx.lineCap = 'round'; tctx.lineJoin = 'round';
     tctx.translate(-b.minX + pad, -b.minY + pad);
     for (const s of strokes) drawStroke(tctx, s);
+    tmp.toBlob(blob => cb(blob), 'image/png');
+  }
 
-    tmp.toBlob(blob => {
+  function generatePixelBlob(cb) {
+    if (pixelMap.size === 0) { cb(null); return; }
+    let minGX = Infinity, minGY = Infinity, maxGX = -Infinity, maxGY = -Infinity;
+    for (const key of pixelMap.keys()) {
+      const [gx, gy] = key.split(',').map(Number);
+      if (gx < minGX) minGX = gx; if (gy < minGY) minGY = gy;
+      if (gx > maxGX) maxGX = gx; if (gy > maxGY) maxGY = gy;
+    }
+    const padCells = 1;
+    const cols = maxGX - minGX + 1 + padCells * 2;
+    const rows = maxGY - minGY + 1 + padCells * 2;
+    const exportCell = 32;
+    const srcW = cols * exportCell;
+    const srcH = rows * exportCell;
+    const tmp = document.createElement('canvas');
+    tmp.width = Math.max(1, Math.round(srcW));
+    tmp.height = Math.max(1, Math.round(srcH));
+    const tctx = tmp.getContext('2d');
+    tctx.fillStyle = theme === 'light' ? '#ffffff' : '#0f0f14';
+    tctx.fillRect(0, 0, srcW, srcH);
+    for (const [key, color] of pixelMap) {
+      const [gx, gy] = key.split(',').map(Number);
+      const px = (gx - minGX + padCells) * exportCell;
+      const py = (gy - minGY + padCells) * exportCell;
+      tctx.fillStyle = color;
+      tctx.fillRect(px, py, exportCell, exportCell);
+    }
+    tmp.toBlob(blob => cb(blob), 'image/png');
+  }
+
+  function finishPad() {
+    regenerateBlobForCurrentFormat(blob => {
+      if (!blob) { resetDisplay(); closePad(); return; }
       capturedBlob = blob;
       renderPreview();
       [btnStatic, btnScroll, btnCopy, btnDelete, btnFullscreen].forEach(x => x.disabled = false);
       showDisplayBar();
       closePad();
-    }, 'image/png');
+    });
   }
 
   function getBounds(arr) {
@@ -1165,8 +1319,25 @@
     if (fT) fT.style.setProperty('--fsSpeed', speedInput.value + 's');
   });
 
+  // ===== 保存 / 复制 =====
+  const isMobileDevice = /Mobi|Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent) || ('ontouchstart' in window) && navigator.maxTouchPoints > 0;
+  if (isMobileDevice) btnCopy.textContent = '保存图片';
+
   btnCopy.addEventListener('click', async () => {
     if (!capturedBlob) return;
+    if (isMobileDevice) {
+      const url = URL.createObjectURL(capturedBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'handwriting-' + Date.now() + '.png';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 2000);
+      btnCopy.textContent = '已保存';
+      setTimeout(() => btnCopy.textContent = '保存图片', 1200);
+      return;
+    }
     try {
       await navigator.clipboard.write([new ClipboardItem({ 'image/png': capturedBlob })]);
       btnCopy.textContent = '已复制';
@@ -1324,9 +1495,106 @@
   swatches.forEach(s => s.addEventListener('click', () => setInkColor(s.dataset.color)));
   inkColorInput.addEventListener('input', () => setInkColor(inkColorInput.value));
 
+  // ================= 图片导入 =================
+  function triggerImportImage() {
+    importImageInput.click();
+  }
+  importImageInput.addEventListener('change', () => {
+    const file = importImageInput.files && importImageInput.files[0];
+    if (!file) return;
+    importImageToPixels(file, { colors: 128, removeNearWhite: true, keepAspect: true });
+    importImageInput.value = '';
+  });
+
+  function importImageToPixels(file, opts) {
+    const options = Object.assign({ colors: 128, removeNearWhite: true, keepAspect: true }, opts || {});
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        let cols = GRID_N, rows = GRID_N;
+        if (options.keepAspect) {
+          const ratio = img.width / img.height;
+          if (ratio >= 1) { cols = GRID_N; rows = Math.max(1, Math.round(GRID_N / ratio)); }
+          else { rows = GRID_N; cols = Math.max(1, Math.round(GRID_N * ratio)); }
+        }
+        const tmp = document.createElement('canvas');
+        tmp.width = cols; tmp.height = rows;
+        const tctx = tmp.getContext('2d');
+        tctx.imageSmoothingEnabled = true;
+        tctx.imageSmoothingQuality = 'high';
+        tctx.drawImage(img, 0, 0, cols, rows);
+        const data = tctx.getImageData(0, 0, cols, rows).data;
+
+        const colorList = [];
+        for (let y = 0; y < rows; y++) {
+          for (let x = 0; x < cols; x++) {
+            const idx = (y * cols + x) * 4;
+            const r = data[idx], g = data[idx + 1], b = data[idx + 2], a = data[idx + 3];
+            if (a < 128) continue;
+            if (options.removeNearWhite && r > 245 && g > 245 && b > 245) continue;
+            colorList.push({ x, y, r, g, b });
+          }
+        }
+        const quantized = quantizeColors(colorList, options.colors);
+        pixelMap.clear();
+        const offsetX = Math.floor((GRID_N - cols) / 2);
+        const offsetY = Math.floor((GRID_N - rows) / 2);
+        for (const q of quantized) {
+          const gx = q.x + offsetX;
+          const gy = q.y + offsetY;
+          if (!inGrid(gx, gy)) continue;
+          pixelMap.set(gx + ',' + gy, `rgb(${q.r},${q.g},${q.b})`);
+        }
+        strokes = [];
+        if (padMode !== 'pixel') {
+          padMode = 'pixel';
+          syncModeButtons();
+        }
+        zoom = Math.min(cssW / (GRID_N * GRID_CELL_PX), cssH / (GRID_N * GRID_CELL_PX)) * 1.6;
+        zoom = Math.max(0.3, Math.min(4, zoom));
+        viewX = (GRID_N * GRID_CELL_PX - cssW / zoom) / 2;
+        viewY = (GRID_N * GRID_CELL_PX - cssH / zoom) / 2;
+        clampView();
+        updateZoomUI();
+        drawPad();
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function quantizeColors(list, targetCount) {
+    if (list.length === 0) return [];
+    if (targetCount >= list.length) return list.map(c => ({ x: c.x, y: c.y, r: c.r, g: c.g, b: c.b }));
+    const boxSize = Math.ceil(Math.cbrt(256 * 256 * 256 / targetCount));
+    const boxMap = new Map();
+    for (const c of list) {
+      const br = Math.floor(c.r / boxSize);
+      const bg = Math.floor(c.g / boxSize);
+      const bb = Math.floor(c.b / boxSize);
+      const key = br + ',' + bg + ',' + bb;
+      if (!boxMap.has(key)) boxMap.set(key, { r: 0, g: 0, b: 0, n: 0, cells: [] });
+      const box = boxMap.get(key);
+      box.r += c.r; box.g += c.g; box.b += c.b; box.n++;
+      box.cells.push({ x: c.x, y: c.y });
+    }
+    const out = [];
+    for (const box of boxMap.values()) {
+      const avgR = Math.round(box.r / box.n);
+      const avgG = Math.round(box.g / box.n);
+      const avgB = Math.round(box.b / box.n);
+      for (const cell of box.cells) out.push({ x: cell.x, y: cell.y, r: avgR, g: avgG, b: avgB });
+    }
+    return out;
+  }
+
   // ================= 初始 =================
   applyTheme('dark');
   setSize(3);
+
+  mountTools();
+
   setPadMode('smooth');
   setTool('draw');
   refreshSmoothUI();
